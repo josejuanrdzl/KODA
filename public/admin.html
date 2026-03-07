@@ -239,6 +239,10 @@
                 <h3>Executive/Corporate</h3>
                 <div class="value" id="stat-premium-users">-</div>
             </div>
+            <div class="stat-card">
+                <h3>Ingresos MRR</h3>
+                <div class="value" id="stat-revenue" style="font-size: 1.5rem; line-height: 1.2;">-</div>
+            </div>
         </div>
 
         <div class="table-container">
@@ -298,6 +302,8 @@
                 document.getElementById('stat-active-subs').innerText = stats.active_subscriptions;
                 document.getElementById('stat-trial-users').innerText = stats.trial_users;
                 document.getElementById('stat-premium-users').innerText = (stats.plans.executive || 0) + (stats.plans.corporate || 0);
+
+                document.getElementById('stat-revenue').innerHTML = `$${(stats.revenue?.usd || 0).toFixed(2)} USD<br>$${(stats.revenue?.mxn || 0).toFixed(2)} MXN`;
 
                 // Fetch Users
                 const users = await fetchWithAuth('/api/admin/users');

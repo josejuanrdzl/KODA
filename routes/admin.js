@@ -20,6 +20,22 @@ router.get('/stats', requireAdmin, async (req, res) => {
 
         if (error) throw error;
 
+        // Obtener MRR desde suscripciones
+        const { data: subs } = await db.supabase
+            .from('subscriptions')
+            .select('amount, currency')
+            .eq('status', 'active');
+
+        let mrr_usd = 0;
+        let mrr_mxn = 0;
+
+        if (subs) {
+            subs.forEach(s => {
+                if (s.currency === 'usd') mrr_usd += ((s.amount || 0) / 100);
+                if (s.currency === 'mxn') mrr_mxn += ((s.amount || 0) / 100);
+            });
+        }
+
         const stats = {
             total_users: users.length,
             active_subscriptions: users.filter(u => u.plan_status === 'active' && u.plan !== 'starter').length,
@@ -29,6 +45,10 @@ router.get('/stats', requireAdmin, async (req, res) => {
                 basic: users.filter(u => u.plan === 'basic').length,
                 executive: users.filter(u => u.plan === 'executive').length,
                 corporate: users.filter(u => u.plan === 'corporate').length,
+            },
+            revenue: {
+                usd: mrr_usd,
+                mxn: mrr_mxn
             }
         };
 
