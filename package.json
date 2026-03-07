@@ -19,7 +19,8 @@
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "node-cron": "^4.2.1",
-    "node-telegram-bot-api": "^0.67.0"
+    "node-telegram-bot-api": "^0.67.0",
+    "stripe": "^20.4.1"
   },
   "devDependencies": {
     "ngrok": "^5.0.0-beta.2"

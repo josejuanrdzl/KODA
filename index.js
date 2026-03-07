@@ -8,17 +8,33 @@ const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
 const db = require('./services/supabase');
 const reminders = require('./services/reminders');
+const proactive = require('./services/proactive');
 
 const { handleCommand } = require('./handlers/commands');
 const { handleOnboarding } = require('./handlers/onboarding');
 const { handleMainFlow } = require('./handlers/main');
 
 const app = express();
+
+// Webhook for Stripe needs raw body parser BEFORE express.json()
+const stripeWebhook = require('./routes/webhook-stripe');
+app.use('/webhook-stripe', express.raw({ type: 'application/json' }), stripeWebhook);
+
 app.use(express.json());
+app.use(express.static('public')); // Serve the web portal files
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 // Solo usaremos webhook
 const bot = new TelegramBot(token);
+module.exports = { bot }; // Export bot early for routes
+
+// Registration API
+const registrationRoutes = require('./routes/registration');
+app.use('/api', registrationRoutes);
+
+// Admin API
+const adminRoutes = require('./routes/admin');
+app.use('/api/admin', adminRoutes);
 
 app.post('/webhook', async (req, res) => {
     res.sendStatus(200); // Responder OK rápido a Telegram
@@ -47,6 +63,7 @@ app.post('/webhook', async (req, res) => {
         if (!user) {
             user = await db.createUser({
                 telegram_id: telegramId,
+                telegram_username: msg.from.username ? msg.from.username.toLowerCase() : null,
                 // Algunos campos opcionales que extraemos de telegram por default
                 name: msg.from.first_name || 'Nuevo Usuario',
             });
@@ -74,8 +91,14 @@ app.post('/webhook', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`[KODA] Servidor KODA v0.1 iniciado en el puerto ${PORT}`);
+const stripeService = require('./services/stripe');
+
+app.listen(process.env.PORT || 3000, async () => {
+    console.log(`[KODA] Servidor KODA v0.1 iniciado en el puerto ${process.env.PORT || 3000}`);
+
+    // Auto-crear productos y precios en Stripe si no existen
+    await stripeService.initStripeProducts();
     // Iniciar Cron Job
     reminders.startCron(bot);
+    proactive.startCron(bot);
 });

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KODA Admin Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --surface-color: #161b22;
+            --primary-accent: #58a6ff;
+            --text-primary: #f0f6fc;
+            --text-secondary: #8b949e;
+            --border-color: #30363d;
+            --danger-color: #da3633;
+            --success-color: #2ea043;
+            --warning-color: #d29922;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 {
+            margin: 0;
+        }
+
+        /* Login Modal */
+        #login-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .login-box {
+            background: var(--surface-color);
+            padding: 2.5rem;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            width: 100%;
+            max-width: 350px;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.8rem;
+            margin: 1rem 0;
+            background: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        button {
+            width: 100%;
+            padding: 0.8rem;
+            background: var(--primary-accent);
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-family: inherit;
+        }
+
+        button:hover {
+            background: #3182ce;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--surface-color);
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            margin: 0 0 0.5rem 0;
+            color: var(--text-secondary);
+            font-size: 1rem;
+        }
+
+        .stat-card .value {
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        /* Users Table */
+        .table-container {
+            background: var(--surface-color);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            overflow: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th,
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.05);
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-trial {
+            background: var(--warning-color);
+            color: #000;
+        }
+
+        .status-active {
+            background: var(--success-color);
+            color: #fff;
+        }
+
+        .status-suspended {
+            background: var(--danger-color);
+            color: #fff;
+        }
+
+        .status-cancelled {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .action-row {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        select {
+            background: #0d1117;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 4px 8px;
+        }
+
+        .btn-small {
+            width: auto;
+            padding: 4px 12px;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Login Auth -->
+    <div id="login-modal">
+        <div class="login-box">
+            <h2>Admin Login</h2>
+            <input type="password" id="admin-pass" placeholder="Contraseña Maestra">
+            <button onclick="login()">Ingresar</button>
+            <div id="login-error" style="color:red; font-size: 0.8rem; margin-top: 10px; display: none;">Contraseña
+                Incorrecta</div>
+        </div>
+    </div>
+
+    <div class="container" id="dashboard" style="display: none;">
+        <header>
+            <h1>Panel Administrativo</h1>
+            <button class="btn-small" onclick="loadData()" style="width: auto;">Actualizar Datos</button>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Usuarios</h3>
+                <div class="value" id="stat-total-users">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Suscripciones Activas</h3>
+                <div class="value" id="stat-active-subs">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>En Periodo Trial</h3>
+                <div class="value" id="stat-trial-users">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Executive/Corporate</h3>
+                <div class="value" id="stat-premium-users">-</div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Usuario (TG)</th>
+                        <th>Nombre</th>
+                        <th>Plan Actual</th>
+                        <th>Status</th>
+                        <th>Msjs Hoy</th>
+                        <th>Configuración Rápida</th>
+                    </tr>
+                </thead>
+                <tbody id="users-table-body">
+                    <!-- Filas inyectadas por JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let adminPassword = '';
+
+        function login() {
+            const pass = document.getElementById('admin-pass').value;
+            if (pass) {
+                adminPassword = pass;
+                loadData();
+            }
+        }
+
+        async function fetchWithAuth(url, options = {}) {
+            options.headers = options.headers || {};
+            options.headers['x-admin-password'] = adminPassword;
+            options.headers['Content-Type'] = 'application/json';
+
+            const res = await fetch(url, options);
+            if (res.status === 401) {
+                document.getElementById('login-modal').style.display = 'flex';
+                document.getElementById('dashboard').style.display = 'none';
+                document.getElementById('login-error').style.display = 'block';
+                throw new Error('Unauthorized');
+            }
+            return res.json();
+        }
+
+        async function loadData() {
+            try {
+                // Fetch Stats
+                const stats = await fetchWithAuth('/api/admin/stats');
+
+                document.getElementById('login-modal').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+
+                document.getElementById('stat-total-users').innerText = stats.total_users;
+                document.getElementById('stat-active-subs').innerText = stats.active_subscriptions;
+                document.getElementById('stat-trial-users').innerText = stats.trial_users;
+                document.getElementById('stat-premium-users').innerText = (stats.plans.executive || 0) + (stats.plans.corporate || 0);
+
+                // Fetch Users
+                const users = await fetchWithAuth('/api/admin/users');
+                const tbody = document.getElementById('users-table-body');
+                tbody.innerHTML = '';
+
+                users.forEach(u => {
+                    const row = document.createElement('tr');
+
+                    row.innerHTML = `
+                        <td>${u.telegram_username ? '@' + u.telegram_username : u.telegram_id}</td>
+                        <td>${u.name}</td>
+                        <td>${u.plan.toUpperCase()}</td>
+                        <td><span class="status-badge status-${u.plan_status}">${u.plan_status}</span></td>
+                        <td>${u.messages_today || 0}</td>
+                        <td class="action-row">
+                            <select id="select-plan-${u.id}">
+                                <option value="starter" ${u.plan === 'starter' ? 'selected' : ''}>Starter</option>
+                                <option value="basic" ${u.plan === 'basic' ? 'selected' : ''}>Basic</option>
+                                <option value="executive" ${u.plan === 'executive' ? 'selected' : ''}>Executive</option>
+                                <option value="corporate" ${u.plan === 'corporate' ? 'selected' : ''}>Corporate</option>
+                            </select>
+                            <select id="select-status-${u.id}">
+                                <option value="trial" ${u.plan_status === 'trial' ? 'selected' : ''}>Trial</option>
+                                <option value="active" ${u.plan_status === 'active' ? 'selected' : ''}>Active</option>
+                                <option value="suspended" ${u.plan_status === 'suspended' ? 'selected' : ''}>Suspended</option>
+                                <option value="cancelled" ${u.plan_status === 'cancelled' ? 'selected' : ''}>Cancelled</option>
+                            </select>
+                            <button class="btn-small" onclick="updateUserPlan('${u.id}')">Guardar</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function updateUserPlan(userId) {
+            const plan = document.getElementById(`select-plan-${userId}`).value;
+            const status = document.getElementById(`select-status-${userId}`).value;
+
+            try {
+                await fetchWithAuth(`/api/admin/users/${userId}/plan`, {
+                    method: 'POST',
+                    body: JSON.stringify({ plan, plan_status: status })
+                });
+                alert('Usuario actualizado!');
+                loadData();
+            } catch (err) {
+                alert('Error actualizando usuario');
+            }
+        }
+    </script>
+</body>
+
+</html>

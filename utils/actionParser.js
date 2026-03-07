@@ -57,6 +57,27 @@ function parseActions(text) {
                 actions.push({ type, payload: { category, key, value, context } });
             }
         }
+        else if (type === 'SAVE_JOURNAL') {
+            // Formato: contenido|mood_score|mood_label|summary
+            const journalParts = argsRaw.split('|');
+            if (journalParts.length >= 4) {
+                const content = journalParts[0].trim();
+                const mood_score = journalParts[1].trim();
+                const mood_label = journalParts[2].trim();
+                const summary = journalParts.slice(3).join('|').trim();
+                actions.push({ type, payload: { content, mood_score, mood_label, summary } });
+            }
+        }
+        else if (type === 'SAVE_ANALYSIS') {
+            // Formato: alias|tono|resumen
+            const analysisParts = argsRaw.split('|');
+            if (analysisParts.length >= 3) {
+                const alias = analysisParts[0].trim();
+                const tone = analysisParts[1].trim();
+                const summary = analysisParts.slice(2).join('|').trim();
+                actions.push({ type, payload: { alias, tone, summary } });
+            }
+        }
 
         // Limpiar del texto original la ocurrencia que encontramos
         strippedText = strippedText.replace(match[0], '');

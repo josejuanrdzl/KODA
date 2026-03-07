@@ -3,9 +3,30 @@ const claude = require('../services/claude');
 const { parseActions } = require('../utils/actionParser');
 
 async function handleMainFlow(bot, msg, user) {
+
     const telegramId = user.telegram_id;
     const chatId = msg.chat.id;
-    const userText = msg.text || '';
+    let userText = msg.text || '';
+
+    // Detectar reenvíos (forwards de Telegram)
+    const isForwarded = Boolean(msg.forward_date || msg.forward_from || msg.forward_origin || msg.forward_sender_name);
+
+    // Si es un reenvío, inyectamos una instrucción clara a Claude
+    if (isForwarded) {
+        userText = `[MENSAJE REENVIADO DE TERCERO]: "${userText}"\n\n[INSTRUCCIÓN INTERNA]: Analiza el tono de este mensaje de un tercero, su posible intención oculta (sin juzgar, solo perspectiva) y dame 2 opciones de respuesta (una firme/clara y otra más suave/conciliadora). Usa tu acción SAVE_ANALYSIS al final.`;
+    }
+
+    // --- ENFORCEMENT DE LÍMITES ---
+    if (user.plan_status === 'suspended') {
+        await bot.sendMessage(chatId, "⚠️ Tu cuenta está suspendida por falta de pago. Por favor actualiza tu método de pago ingresando a tu portal con el comando /plan.");
+        return;
+    }
+
+    if (user.plan === 'starter' && (user.messages_today || 0) >= 15) {
+        await bot.sendMessage(chatId, "⏳ Alcanzaste tu límite de 15 mensajes hoy en el plan Starter. Para seguir platicando y desbloquear todo el potencial de KODA, por favor actualiza tu plan con el comando /upgrade.");
+        return;
+    }
+    // ------------------------------
 
     // Actualizar last_active_at y messages_today
     await db.updateUser(user.id, {
@@ -27,11 +48,13 @@ async function handleMainFlow(bot, msg, user) {
 
     try {
         // 1. Obtener contexto del usuario
-        const [recentMessages, recentNotes, recentMemories, activeReminders] = await Promise.all([
+        const [recentMessages, recentNotes, recentMemories, activeReminders, recentJournals, emotionalTimeline] = await Promise.all([
             db.getRecentMessages(user.id, 10),
             db.getRecentNotes(user.id, 5),
             db.getRecentMemories(user.id, 10),
-            db.getActiveReminders(user.id)
+            db.getActiveReminders(user.id),
+            db.getRecentJournalEntries(user.id, 5),
+            db.getEmotionalTimeline(user.id, 7)
         ]);
 
         // 2. Generar respuesta con Claude
@@ -44,7 +67,9 @@ async function handleMainFlow(bot, msg, user) {
             chatHistory,
             recentMemories,
             recentNotes,
-            activeReminders
+            activeReminders,
+            recentJournals,
+            emotionalTimeline
         );
 
         // 3. Parsear acciones de la respuesta
@@ -61,6 +86,13 @@ async function handleMainFlow(bot, msg, user) {
             }
             else if (action.type === 'SAVE_MEMORY') {
                 await db.saveMemory(user.id, action.payload.category, action.payload.key, action.payload.value, action.payload.context);
+            }
+            else if (action.type === 'SAVE_JOURNAL') {
+                await db.saveJournalEntry(user.id, action.payload.content, action.payload.mood_score, action.payload.mood_label, action.payload.summary);
+                await db.saveEmotionalTimeline(user.id, action.payload.mood_score, action.payload.mood_label, 'diario');
+            }
+            else if (action.type === 'SAVE_ANALYSIS') {
+                await db.saveMessageAnalysis(user.id, msg.text || '', action.payload.alias, action.payload.tone, action.payload.summary);
             }
         }
 

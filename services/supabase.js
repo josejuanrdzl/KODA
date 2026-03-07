@@ -44,6 +44,15 @@ async function updateUser(id, updates) {
   return data;
 }
 
+async function getAllUsers() {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*');
+
+  if (error) throw error;
+  return data || [];
+}
+
 async function getRecentMessages(user_id, limit = 10) {
   const { data, error } = await supabase
     .from('conversations')
@@ -62,6 +71,21 @@ async function saveMessage(messageData) {
     .insert([messageData]);
 
   if (error) throw error;
+}
+
+async function getDailyMessageCount(user_id) {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const { count, error } = await supabase
+    .from('conversations')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user_id)
+    .eq('role', 'user')
+    .gte('created_at', todayStart.toISOString());
+
+  if (error) throw error;
+  return count || 0;
 }
 
 async function saveNote(user_id, content, tag) {
@@ -149,12 +173,86 @@ async function getRecentMemories(user_id, limit = 10) {
   return data || [];
 }
 
+async function saveJournalEntry(user_id, content, mood_score, mood_label, summary) {
+  // Get today's start and end to check if an entry exists
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const { data: existing } = await supabase
+    .from('journal_entries')
+    .select('id')
+    .eq('user_id', user_id)
+    .gte('created_at', todayStart.toISOString())
+    .lte('created_at', todayEnd.toISOString())
+    .limit(1);
+
+  if (existing && existing.length > 0) {
+    // Update
+    const { error } = await supabase
+      .from('journal_entries')
+      .update({ content, mood_score: parseInt(mood_score), mood_label, summary })
+      .eq('id', existing[0].id);
+    if (error) throw error;
+  } else {
+    // Insert
+    const entry_date = new Date().toISOString().split('T')[0];
+    const { error } = await supabase
+      .from('journal_entries')
+      .insert([{ user_id, entry_date, content, mood_score: parseInt(mood_score), mood_label, summary }]);
+    if (error) throw error;
+  }
+}
+
+async function getRecentJournalEntries(user_id, limit = 7) {
+  const { data, error } = await supabase
+    .from('journal_entries')
+    .select('*')
+    .eq('user_id', user_id)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data || [];
+}
+
+async function saveEmotionalTimeline(user_id, mood_score, mood_label, mood_source) {
+  const { error } = await supabase
+    .from('emotional_timeline')
+    .insert([{ user_id, mood_score: parseInt(mood_score), mood_label, mood_source }]);
+
+  if (error) throw error;
+}
+
+async function getEmotionalTimeline(user_id, limit = 30) {
+  const { data, error } = await supabase
+    .from('emotional_timeline')
+    .select('*')
+    .eq('user_id', user_id)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data || [];
+}
+
+async function saveMessageAnalysis(user_id, original_message, sender_alias, tone, summary) {
+  const { error } = await supabase
+    .from('message_analysis')
+    .insert([{ user_id, original_message, sender_alias, tone_detected: tone, analysis_summary: summary }]);
+
+  if (error) throw error;
+}
+
 module.exports = {
   supabase,
   getUserByTelegramId,
   createUser,
   updateUser,
+  getAllUsers,
   getRecentMessages,
+  getDailyMessageCount,
   saveMessage,
   saveNote,
   getRecentNotes,
@@ -162,5 +260,10 @@ module.exports = {
   getActiveReminders,
   markReminderSent,
   saveMemory,
-  getRecentMemories
+  getRecentMemories,
+  saveJournalEntry,
+  getRecentJournalEntries,
+  saveEmotionalTimeline,
+  getEmotionalTimeline,
+  saveMessageAnalysis
 };
