@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ ignoreEnvFile: true, silent: true });
 const { Anthropic } = require('@anthropic-ai/sdk');
 
 const anthropic = new Anthropic({

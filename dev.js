@@ -1,6 +1,6 @@
 const axios = require('axios');
 const { spawn, execSync } = require('child_process');
-require('dotenv').config();
+require('dotenv').config({ ignoreEnvFile: true, silent: true });
 
 const PORT = process.env.PORT || 3000;
 const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;

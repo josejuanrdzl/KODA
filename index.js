@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ ignoreEnvFile: true, silent: true });
 const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
 const db = require('./services/supabase');
