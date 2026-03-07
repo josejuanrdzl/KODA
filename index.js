@@ -1,12 +1,9 @@
-require('dotenv').config();
-console.log('--- DEBUG: DETALLES DE VARIABLES ---');
-console.log('SUPABASE_URL existe?', process.env.SUPABASE_URL ? 'SI' : 'NO');
-console.log('SUPABASE_URL length:', process.env.SUPABASE_URL ? process.env.SUPABASE_URL.length : 0);
-console.log('SUPABASE_URL type:', typeof process.env.SUPABASE_URL);
-console.log('SUPABASE_URL is empty?', process.env.SUPABASE_URL === '');
-console.log('TELEGRAM_BOT_TOKEN existe?', process.env.TELEGRAM_BOT_TOKEN ? 'SI' : 'NO');
-console.log('ANTHROPIC_API_KEY existe?', process.env.ANTHROPIC_API_KEY ? 'SI' : 'NO');
-console.log('------------------------------------');
+if (process.env.NODE_ENV !== 'production') {
+    require('dotenv').config({ ignoreEnvFile: true, silent: true });
+}
+console.log('--- DEBUG: ENTORNO DISPONIBLE EN RAILWAY ---');
+console.log(Object.keys(process.env).join(', '));
+console.log('--------------------------------------------');
 const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
 const db = require('./services/supabase');
