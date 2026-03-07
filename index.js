@@ -60,13 +60,19 @@ app.post('/webhook', async (req, res) => {
         // 1. Buscar o crear usuario
         let user = await db.getUserByTelegramId(telegramId);
 
+        const currentUsername = msg.from.username ? msg.from.username.toLowerCase() : null;
+
         if (!user) {
             user = await db.createUser({
                 telegram_id: telegramId,
-                telegram_username: msg.from.username ? msg.from.username.toLowerCase() : null,
+                telegram_username: currentUsername,
                 // Algunos campos opcionales que extraemos de telegram por default
                 name: msg.from.first_name || 'Nuevo Usuario',
             });
+        } else if (user.telegram_username !== currentUsername && currentUsername) {
+            // Actualizar username si no lo tenía o si cambió, para asegurar que el portal web lo pueda encontrar
+            await db.updateUser(user.id, { telegram_username: currentUsername });
+            user.telegram_username = currentUsername;
         }
 
         // 2. Revisar estado de onboarding
