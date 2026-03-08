@@ -7,15 +7,10 @@ const { handleOnboarding } = require('../handlers/onboarding');
 const { handleCommand } = require('../handlers/commands');
 const { handleMainFlow } = require('../handlers/main');
 
-// Endpoint para recibir POST de Twilio (viene desde el webhook configurado en Twilio Console)
-// IMPORTANTE: Twilio envía application/x-www-form-urlencoded
-router.post('/', async (req, res) => {
-    // 1. Enviar 200 OK y TwiML vacío casi de inmediato para evitar retrys
-    res.set('Content-Type', 'text/xml');
-    res.send('<Response></Response>');
-
+// Función asíncrona para procesar el mensaje en bloque (sin detener la respuesta HTTP de Twilio)
+async function processWhatsAppMessage(reqBody) {
     try {
-        const twilioPayload = req.body;
+        const twilioPayload = reqBody;
 
         // Extraer los datos relevantes de Twilio
         const fromNumberFull = twilioPayload.From || ''; // ej. "whatsapp:+52155..."
@@ -97,8 +92,19 @@ router.post('/', async (req, res) => {
         await handleMainFlow(bot, mockMsg, user);
 
     } catch (error) {
-        console.error('Error procesando webhook de WhatsApp:', error);
+        console.error('Error procesando webhook interno de WhatsApp:', error);
     }
+}
+
+// Endpoint para recibir POST de Twilio (viene desde el webhook configurado en Twilio Console)
+// IMPORTANTE: Twilio envía application/x-www-form-urlencoded
+router.post('/', (req, res) => {
+    // 1. Enviar 200 OK y TwiML vacío casi de inmediato para evitar retrys de Twilio por timeout
+    res.set('Content-Type', 'text/xml');
+    res.send('<Response></Response>');
+
+    // 2. Procesar TODO el flujo pesado en segundo plano sin detener la solicitud HTTP original
+    processWhatsAppMessage(req.body).catch(console.error);
 });
 
 module.exports = router;
