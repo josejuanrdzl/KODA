@@ -6,7 +6,6 @@ const { sendChannelMessage } = require('../utils/messenger'); // Integración Wh
 
 async function handleMainFlow(bot, msg, user) {
 
-    const telegramId = user.telegram_id;
     const chatId = msg.chat.id;
     const channel = msg._channel || 'telegram';
     let userText = msg.text || '';

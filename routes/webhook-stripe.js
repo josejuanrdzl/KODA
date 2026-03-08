@@ -3,6 +3,16 @@ const router = express.Router();
 const stripeService = require('../services/stripe');
 const db = require('../services/supabase');
 const { bot } = require('../index');
+const { sendChannelMessage } = require('../utils/messenger');
+
+async function sendNotification(bot, user, message, options) {
+    if (!bot) return;
+    const channel = user.whatsapp_id ? 'whatsapp' : 'telegram';
+    const chatId = channel === 'whatsapp' ? user.whatsapp_id : user.telegram_id;
+    if (chatId) {
+        await sendChannelMessage(bot, chatId, message, options, channel).catch(() => { });
+    }
+}
 
 router.post('/', express.raw({ type: 'application/json' }), async (request, response) => {
     const sig = request.headers['stripe-signature'];
@@ -104,9 +114,7 @@ async function handleSubscriptionDeleted(subscription) {
     const user = users[0];
 
     await db.updateUser(user.id, { plan_status: 'cancelled', plan: 'starter' });
-    if (bot) {
-        await bot.sendMessage(user.telegram_id, 'Tu suscripción ha sido cancelada. Tu cuenta ha vuelto al plan básico gratuito.', { parse_mode: 'Markdown' }).catch(() => { });
-    }
+    await sendNotification(bot, user, 'Tu suscripción ha sido cancelada. Tu cuenta ha vuelto al plan básico gratuito.', { parse_mode: 'Markdown' });
 }
 
 async function handlePaymentFailed(invoice) {
@@ -118,9 +126,7 @@ async function handlePaymentFailed(invoice) {
     await db.updateUser(user.id, { plan_status: 'suspended' });
     const portalUrl = `${process.env.BASE_URL}/portal.html`;
 
-    if (bot) {
-        await bot.sendMessage(user.telegram_id, `⚠️ No pudimos procesar tu pago. Tu cuenta está suspendida.\n\nActualiza tu método de pago aquí: ${portalUrl}`, { parse_mode: 'Markdown' }).catch(() => { });
-    }
+    await sendNotification(bot, user, `⚠️ No pudimos procesar tu pago. Tu cuenta está suspendida.\n\nActualiza tu método de pago aquí: ${portalUrl}`, { parse_mode: 'Markdown' });
 }
 
 async function handleTrialWillEnd(subscription) {
@@ -133,9 +139,7 @@ async function handleTrialWillEnd(subscription) {
     const amount = (subscription.items.data[0].price.unit_amount / 100).toFixed(2);
     const currency = subscription.currency.toUpperCase();
 
-    if (bot) {
-        await bot.sendMessage(user.telegram_id, `⏰ Tu trial termina en 2 días. El ${endDate} se cobrará $${amount} ${currency} a tu tarjeta.\n\n¿Tienes alguna pregunta?`, { parse_mode: 'Markdown' }).catch(() => { });
-    }
+    await sendNotification(bot, user, `⏰ Tu trial termina en 2 días. El ${endDate} se cobrará $${amount} ${currency} a tu tarjeta.\n\n¿Tienes alguna pregunta?`, { parse_mode: 'Markdown' });
 }
 
 module.exports = router;

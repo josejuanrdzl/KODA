@@ -12,20 +12,19 @@ router.post('/register', express.json(), async (req, res) => {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        // Find user by username
-        const cleanUsername = telegram_username.replace('@', '').toLowerCase();
+        // Find user by username or whatsapp_id
+        const cleanUsername = telegram_username.replace('@', '').toLowerCase().trim();
 
-        // Let's find the user by username. We need to query telegram_username or just assume they have registered via telegram first.
-        // Wait, the telegram bot usually saves their username but let's query the `users` table
+        // Let's find the user by username or whatsapp_id
         const { data: users, error: dbError } = await db.supabase
             .from('users')
             .select('*')
-            .eq('telegram_username', cleanUsername)
+            .or(`telegram_username.ilike.%${cleanUsername}%,whatsapp_id.ilike.%${cleanUsername}%`)
             .limit(1);
 
         if (dbError) throw dbError;
         if (!users || users.length === 0) {
-            return res.status(404).json({ error: 'Usuario de Telegram no encontrado. Por favor, asegúrate de haber hablado con KODA primero y usar tu @usuario exacto.' });
+            return res.status(404).json({ error: 'Usuario no encontrado. Por favor, asegúrate de haber hablado con KODA primero y usar tu @usuario exacto o número de WhatsApp (ej. +52...).' });
         }
 
         const user = users[0];
@@ -37,7 +36,8 @@ router.post('/register', express.json(), async (req, res) => {
 
         // 1. Create Stripe Customer
         const customer = await stripeService.createCustomer(email, name, {
-            telegram_id: user.telegram_id.toString(),
+            telegram_id: user.telegram_id ? user.telegram_id.toString() : '',
+            whatsapp_id: user.whatsapp_id ? user.whatsapp_id.toString() : '',
             user_id: user.id
         });
 
@@ -61,13 +61,16 @@ router.post('/register', express.json(), async (req, res) => {
             billing_currency: currency
         });
 
-        // 4. Notify via Telegram
+        // 4. Notify via Telegram or WhatsApp
         const formatter = new Intl.DateTimeFormat('es-MX', { dateStyle: 'long' });
         const amount = (subscription.items.data[0].price.unit_amount / 100).toFixed(2);
 
         if (bot) {
             const msg = `¡Listo! Tu trial de 3 días comenzó. El ${formatter.format(trialEndDate)} se hará el primer cobro de $${amount} ${currency.toUpperCase()}.\n\n¡Disfruta KODA al máximo!`;
-            await bot.sendMessage(user.telegram_id, msg);
+            const channel = user.whatsapp_id ? 'whatsapp' : 'telegram';
+            const chatId = channel === 'whatsapp' ? user.whatsapp_id : user.telegram_id;
+            const { sendChannelMessage } = require('../utils/messenger');
+            await sendChannelMessage(bot, chatId, msg, {}, channel).catch(() => { });
         }
 
         res.json({ success: true, message: 'Suscripción creada exitosamente.' });
@@ -80,12 +83,12 @@ router.post('/register', express.json(), async (req, res) => {
 router.post('/portal', express.json(), async (req, res) => {
     try {
         const { telegram_username } = req.body;
-        const cleanUsername = telegram_username.replace('@', '').toLowerCase();
+        const cleanUsername = telegram_username.replace('@', '').toLowerCase().trim();
 
         const { data: users } = await db.supabase
             .from('users')
             .select('stripe_customer_id')
-            .eq('telegram_username', cleanUsername)
+            .or(`telegram_username.ilike.%${cleanUsername}%,whatsapp_id.ilike.%${cleanUsername}%`)
             .limit(1);
 
         if (!users || users.length === 0 || !users[0].stripe_customer_id) {
