@@ -1,4 +1,5 @@
 const db = require('../services/supabase');
+const { sendChannelMessage } = require('../utils/messenger');
 
 // Memoria volátil para sesiones de onboarding
 // Idealmente en producción esto iría a Redis o DB.
@@ -8,13 +9,14 @@ async function handleOnboarding(bot, msg, user) {
     const telegramId = user.telegram_id;
     const chatId = msg.chat.id;
     const text = msg.text || '';
+    const channel = msg._channel || 'telegram';
 
     // Initial step 0
     if (!onboardingSessions.has(telegramId)) {
-        await bot.sendMessage(chatId, `¡Hola! Soy KODA, tu asistente personal con inteligencia artificial. 
+        await sendChannelMessage(bot, chatId, `¡Hola! Soy KODA, tu asistente personal con inteligencia artificial. 
 Voy a ser tu memoria, tu organizador, y tu mano derecha. Todo lo que me digas lo recuerdo, y estoy disponible cuando me necesites.
 
-Para darte el mejor servicio, necesito conocerte un poco. Son solo 3 preguntas rápidas. ¿Empezamos?`);
+Para darte el mejor servicio, necesito conocerte un poco. Son solo 3 preguntas rápidas. ¿Empezamos?`, {}, channel);
         onboardingSessions.set(telegramId, 'waiting_start');
         return;
     }
@@ -23,19 +25,19 @@ Para darte el mejor servicio, necesito conocerte un poco. Son solo 3 preguntas r
 
     if (step === 'waiting_start') {
         // Asume que aceptó empezar
-        await bot.sendMessage(chatId, `¡Perfecto! ¿Cómo te llamas? (como quieras que te diga)`);
+        await sendChannelMessage(bot, chatId, `¡Perfecto! ¿Cómo te llamas? (como quieras que te diga)`, {}, channel);
         onboardingSessions.set(telegramId, 'waiting_name');
     }
 
     else if (step === 'waiting_name') {
         await db.updateUser(user.id, { name: text.trim() });
-        await bot.sendMessage(chatId, `¡Mucho gusto, ${text.trim()}! ¿Cómo prefieres que te hable?
+        await sendChannelMessage(bot, chatId, `¡Mucho gusto, ${text.trim()}! ¿Cómo prefieres que te hable?
 1. Profesional (formal y ejecutivo)
 2. Amigable (casual y cercano)
 3. Directo (sin rodeos, al grano)
 4. Divertido (con humor ligero)
 
-(Responde con el número)`);
+(Responde con el número)`, {}, channel);
         onboardingSessions.set(telegramId, 'waiting_tone');
     }
 
@@ -51,12 +53,12 @@ Para darte el mejor servicio, necesito conocerte un poco. Son solo 3 preguntas r
         // Obtener info mas actualizada del usuario
         const updatedUser = await db.getUserByTelegramId(telegramId);
 
-        await bot.sendMessage(chatId, `¡Perfecto! Última pregunta: ¿prefieres que me presente como asistente masculino, femenino, o neutro?
+        await sendChannelMessage(bot, chatId, `¡Perfecto! Última pregunta: ¿prefieres que me presente como asistente masculino, femenino, o neutro?
 1. Masculino
 2. Femenino  
 3. Neutro (sin género)
 
-(Responde con el número)`);
+(Responde con el número)`, {}, channel);
         onboardingSessions.set(telegramId, 'waiting_gender');
     }
 
@@ -71,7 +73,7 @@ Para darte el mejor servicio, necesito conocerte un poco. Son solo 3 preguntas r
         // Get updated user again to make sure we show the correct name
         const finalUser = await db.getUserByTelegramId(telegramId);
 
-        await bot.sendMessage(chatId, `¡Listo, ${finalUser.name}! Ya estamos configurados. Aquí va lo que puedo hacer:
+        await sendChannelMessage(bot, chatId, `¡Listo, ${finalUser.name}! Ya estamos configurados. Aquí va lo que puedo hacer:
 
 🧠 Recordar cosas — Dime cualquier dato y lo guardo.
 📝 Tomar notas — 'Anota que...' y queda guardado.
@@ -79,7 +81,7 @@ Para darte el mejor servicio, necesito conocerte un poco. Son solo 3 preguntas r
 ⏰ Recordatorios — 'Recuérdame que...' y te aviso.
 🎙️ Voz — Mándame audios y te entiendo igual que texto (Fase 2).
 
-Escribe /ayuda en cualquier momento para ver todo. ¡Estoy listo!`);
+Escribe /ayuda en cualquier momento para ver todo. ¡Estoy listo!`, {}, channel);
         onboardingSessions.delete(telegramId);
     }
 }

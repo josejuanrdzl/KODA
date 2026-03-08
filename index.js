@@ -20,6 +20,10 @@ const app = express();
 const stripeWebhook = require('./routes/webhook-stripe');
 app.use('/webhook-stripe', express.raw({ type: 'application/json' }), stripeWebhook);
 
+// Webhook for Twilio WhatsApp (needs urlencoded parser)
+const whatsappWebhook = require('./routes/webhook-whatsapp');
+app.use('/webhook-whatsapp', express.urlencoded({ extended: false }), whatsappWebhook);
+
 app.use(express.json());
 app.use(express.static('public')); // Serve the web portal files
 

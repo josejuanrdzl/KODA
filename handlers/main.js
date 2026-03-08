@@ -2,11 +2,13 @@ const db = require('../services/supabase');
 const claude = require('../services/claude');
 const { parseActions } = require('../utils/actionParser');
 const whisper = require('../services/whisper'); // Nuevo servicio Whisper
+const { sendChannelMessage } = require('../utils/messenger'); // Integración WhatsApp
 
 async function handleMainFlow(bot, msg, user) {
 
     const telegramId = user.telegram_id;
     const chatId = msg.chat.id;
+    const channel = msg._channel || 'telegram';
     let userText = msg.text || '';
     let isAudio = false;
 
@@ -29,7 +31,7 @@ async function handleMainFlow(bot, msg, user) {
         }
 
         // Mostrar indicador temporal
-        const tempMsg = await bot.sendMessage(chatId, "🎙️ Transcribiendo tu audio...");
+        const tempMsg = await sendChannelMessage(bot, chatId, "🎙️ Transcribiendo tu audio...", {}, channel);
 
         // Llamar a Whisper
         const transcript = await whisper.transcribeAudio(bot, fileId);
@@ -40,7 +42,7 @@ async function handleMainFlow(bot, msg, user) {
         } catch (e) { console.log('Error borrando msj transcribiendo', e); }
 
         if (!transcript) {
-            await bot.sendMessage(chatId, "No logré entender el audio o hubo un problema al transcribirlo, ¿puedes repetirlo o escribirlo?");
+            await sendChannelMessage(bot, chatId, "No logré entender el audio o hubo un problema al transcribirlo, ¿puedes repetirlo o escribirlo?", {}, channel);
             return; // Terminar flujo
         }
 
@@ -62,12 +64,12 @@ async function handleMainFlow(bot, msg, user) {
 
     // --- ENFORCEMENT DE LÍMITES ---
     if (user.plan_status === 'suspended') {
-        await bot.sendMessage(chatId, "⚠️ Tu cuenta está suspendida por falta de pago. Por favor actualiza tu método de pago ingresando a tu portal con el comando /plan.");
+        await sendChannelMessage(bot, chatId, "⚠️ Tu cuenta está suspendida por falta de pago. Por favor actualiza tu método de pago ingresando a tu portal con el comando /plan.", {}, channel);
         return;
     }
 
     if (user.plan === 'starter' && (user.messages_today || 0) >= 15) {
-        await bot.sendMessage(chatId, "⏳ Alcanzaste tu límite de 15 mensajes hoy en el plan Starter. Para seguir platicando y desbloquear todo el potencial de KODA, por favor actualiza tu plan con el comando /upgrade.");
+        await sendChannelMessage(bot, chatId, "⏳ Alcanzaste tu límite de 15 mensajes hoy en el plan Starter. Para seguir platicando y desbloquear todo el potencial de KODA, por favor actualiza tu plan con el comando /upgrade.", {}, channel);
         return;
     }
     // ------------------------------
@@ -81,7 +83,7 @@ async function handleMainFlow(bot, msg, user) {
     // Construir el payload del mensaje
     const messagePayload = {
         user_id: user.id,
-        channel: 'telegram',
+        channel: channel,
         role: 'user',
         content: userText,
         content_type: isAudio ? 'audio' : 'text'
@@ -94,18 +96,21 @@ async function handleMainFlow(bot, msg, user) {
     // Guardar mensaje entrante
     await db.saveMessage(messagePayload);
 
-    // Notificar al usuario que estamos pensando
-    bot.sendChatAction(chatId, 'typing');
+    // Notificar al usuario que estamos pensando (Solo soportado real en Telegram)
+    if (channel === 'telegram') {
+        bot.sendChatAction(chatId, 'typing');
+    }
 
     try {
         // 1. Obtener contexto del usuario
-        const [recentMessages, recentNotes, recentMemories, activeReminders, recentJournals, emotionalTimeline] = await Promise.all([
+        const [recentMessages, recentNotes, recentMemories, activeReminders, recentJournals, emotionalTimeline, activeHabits] = await Promise.all([
             db.getRecentMessages(user.id, 10),
             db.getRecentNotes(user.id, 5),
             db.getRecentMemories(user.id, 10),
             db.getActiveReminders(user.id),
             db.getRecentJournalEntries(user.id, 5),
-            db.getEmotionalTimeline(user.id, 7)
+            db.getEmotionalTimeline(user.id, 7),
+            db.getActiveHabits(user.id)
         ]);
 
         // 2. Generar respuesta con Claude
@@ -120,7 +125,8 @@ async function handleMainFlow(bot, msg, user) {
             recentNotes,
             activeReminders,
             recentJournals,
-            emotionalTimeline
+            emotionalTimeline,
+            activeHabits
         );
 
         // 3. Parsear acciones de la respuesta
@@ -145,12 +151,21 @@ async function handleMainFlow(bot, msg, user) {
             else if (action.type === 'SAVE_ANALYSIS') {
                 await db.saveMessageAnalysis(user.id, msg.text || '', action.payload.alias, action.payload.tone, action.payload.summary);
             }
+            else if (action.type === 'CREATE_HABIT') {
+                await db.createHabit(user.id, action.payload.name, action.payload.description, action.payload.frequency, action.payload.reminder_time);
+            }
+            else if (action.type === 'LOG_HABIT') {
+                await db.logHabitCompletion(action.payload.habit_id, user.id, action.payload.completed, action.payload.note);
+            }
+            else if (action.type === 'UPDATE_HABIT_STATUS') {
+                await db.updateHabitStatus(action.payload.habit_id, user.id, action.payload.status);
+            }
         }
 
         // 5. Guardar respuesta del asistente
         await db.saveMessage({
             user_id: user.id,
-            channel: 'telegram',
+            channel: channel,
             role: 'assistant',
             content: strippedText,
             content_type: 'text',
@@ -161,15 +176,15 @@ async function handleMainFlow(bot, msg, user) {
 
         // 6. Enviar mensaje de vuelta al usuario
         try {
-            await bot.sendMessage(chatId, strippedText, { parse_mode: 'Markdown' });
+            await sendChannelMessage(bot, chatId, strippedText, { parse_mode: 'Markdown' }, channel);
         } catch (sendErr) {
-            console.log('Markdown parse error, falling back to plain text');
-            await bot.sendMessage(chatId, strippedText);
+            console.error('Send message error, falling back to plain text:', sendErr);
+            await sendChannelMessage(bot, chatId, strippedText, {}, channel);
         }
 
     } catch (error) {
         console.error('Error in main flow:', error);
-        await bot.sendMessage(chatId, 'Estoy teniendo problemas técnicos. Inténtalo en unos minutos.');
+        await sendChannelMessage(bot, chatId, 'Estoy teniendo problemas técnicos. Inténtalo en unos minutos.', {}, channel);
     }
 }
 

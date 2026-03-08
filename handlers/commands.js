@@ -1,9 +1,11 @@
 const db = require('../services/supabase');
 const journal = require('./journal');
+const { sendChannelMessage } = require('../utils/messenger');
 
 async function handleCommand(bot, msg, user) {
     const text = msg.text || '';
     const chatId = msg.chat.id;
+    const channel = msg._channel || 'telegram';
 
     if (!text.startsWith('/')) return false;
 
@@ -12,7 +14,7 @@ async function handleCommand(bot, msg, user) {
     switch (command) {
         case '/ayuda':
         case '/help':
-            await bot.sendMessage(chatId, `🧠 *Comandos Disponibles KODA*
+            await sendChannelMessage(bot, chatId, `🧠 *Comandos Disponibles KODA*
 /notas o /notes — Lista tus últimas notas.
 /recordatorios o /reminders — Lista tus recordatorios activos.
 /config o /configurar — Menú de configuración.
@@ -23,17 +25,18 @@ async function handleCommand(bot, msg, user) {
 /cancelar — Cancela tu suscripción actual.
 /feedback — Envía sugerencias sobre mi funcionamiento.
 
-🎙️ *Nuevo:* ¡Ya recibo notas de voz y mensajes de video para transcribir automáticamente!`, { parse_mode: 'Markdown' });
+🎙️ *Nuevo:* ¡Ya recibo notas de voz y mensajes de video para transcribir automáticamente!
+📋 *Nuevo:* Administra tus hábitos con /habitos`, { parse_mode: 'Markdown' }, channel);
             return true;
 
         case '/notas':
         case '/notes':
             const notas = await db.getRecentNotes(user.id, 10);
             if (notas.length === 0) {
-                await bot.sendMessage(chatId, 'No tienes notas guardadas actualmente.');
+                await sendChannelMessage(bot, chatId, 'No tienes notas guardadas actualmente.', {}, channel);
             } else {
                 const notasText = notas.map((n, i) => `${i + 1}. [${n.tag || 'general'}] ${n.content}`).join('\n');
-                await bot.sendMessage(chatId, `📝 *Tus últimas 10 notas:*\n${notasText}`, { parse_mode: 'Markdown' });
+                await sendChannelMessage(bot, chatId, `📝 *Tus últimas 10 notas:*\n${notasText}`, { parse_mode: 'Markdown' }, channel);
             }
             return true;
 
@@ -41,35 +44,35 @@ async function handleCommand(bot, msg, user) {
         case '/reminders':
             const recordatorios = await db.getActiveReminders(user.id);
             if (recordatorios.length === 0) {
-                await bot.sendMessage(chatId, 'No tienes recordatorios activos.');
+                await sendChannelMessage(bot, chatId, 'No tienes recordatorios activos.', {}, channel);
             } else {
                 const recText = recordatorios.map((r, i) => `${i + 1}. ${r.content} (🕒 ${new Date(r.remind_at).toLocaleString()})`).join('\n');
-                await bot.sendMessage(chatId, `⏰ *Tus recordatorios activos:*\n${recText}`, { parse_mode: 'Markdown' });
+                await sendChannelMessage(bot, chatId, `⏰ *Tus recordatorios activos:*\n${recText}`, { parse_mode: 'Markdown' }, channel);
             }
             return true;
 
         case '/perfil':
         case '/profile':
             const fechaRegistro = new Date(user.created_at).toLocaleDateString();
-            await bot.sendMessage(chatId, `👤 *Perfil de ${user.name}*
+            await sendChannelMessage(bot, chatId, `👤 *Perfil de ${user.name}*
 Tono: ${user.tone}
 Género: ${user.gender}
 Zona Horaria: ${user.timezone}
-Registrado el: ${fechaRegistro}`, { parse_mode: 'Markdown' });
+Registrado el: ${fechaRegistro}`, { parse_mode: 'Markdown' }, channel);
             return true;
 
         case '/diario':
         case '/journal':
             const param = text.split(' ')[1]?.toLowerCase();
             if (param === 'hoy') {
-                await journal.handleJournalCommand(bot, chatId, user, 'hoy');
+                await journal.handleJournalCommand(bot, chatId, user, 'hoy', channel);
             } else {
-                await journal.handleJournalCommand(bot, chatId, user, 'semana');
+                await journal.handleJournalCommand(bot, chatId, user, 'semana', channel);
             }
             return true;
 
         case '/feedback':
-            await bot.sendMessage(chatId, '💡 Me encanta mejorar. ¿Qué sugerencia o problema te gustaría reportar? (Escríbelo en tu siguiente mensaje)');
+            await sendChannelMessage(bot, chatId, '💡 Me encanta mejorar. ¿Qué sugerencia o problema te gustaría reportar? (Escríbelo en tu siguiente mensaje)', {}, channel);
             // In a more complex version, we could set a state here to save the next msg as feedback
             return true;
 
@@ -83,17 +86,17 @@ Registrado el: ${fechaRegistro}`, { parse_mode: 'Markdown' });
                 try {
                     if (configParam2 === 'on') {
                         await db.saveMemory(user.id, 'config', 'proactive_enabled', 'true', 'system');
-                        await bot.sendMessage(chatId, '🔔 Mensajes proactivos *activados*.', { parse_mode: 'Markdown' });
+                        await sendChannelMessage(bot, chatId, '🔔 Mensajes proactivos *activados*.', { parse_mode: 'Markdown' }, channel);
                     } else if (configParam2 === 'off') {
                         await db.saveMemory(user.id, 'config', 'proactive_enabled', 'false', 'system');
-                        await bot.sendMessage(chatId, '🔕 Mensajes proactivos *desactivados*.', { parse_mode: 'Markdown' });
+                        await sendChannelMessage(bot, chatId, '🔕 Mensajes proactivos *desactivados*.', { parse_mode: 'Markdown' }, channel);
                     }
                 } catch (e) {
-                    await bot.sendMessage(chatId, 'Hubo un error al actualizar la configuración de proactividad en la base de datos.');
+                    await sendChannelMessage(bot, chatId, 'Hubo un error al actualizar la configuración de proactividad en la base de datos.', {}, channel);
                 }
                 return true;
             }
-            await bot.sendMessage(chatId, '⚙️ *Menú de Configuración*\n\nPuedes habilitar o deshabilitar los mensajes proactivos (ej. buenos días, buenas noches).\n\nPara encenderlos, usa: `/config proactivo on`\nPara apagarlos, usa: `/config proactivo off`', { parse_mode: 'Markdown' });
+            await sendChannelMessage(bot, chatId, '⚙️ *Menú de Configuración*\n\nPuedes habilitar o deshabilitar los mensajes proactivos (ej. buenos días, buenas noches).\n\nPara encenderlos, usa: `/config proactivo on`\nPara apagarlos, usa: `/config proactivo off`', { parse_mode: 'Markdown' }, channel);
             return true;
 
         case '/plan':
@@ -108,27 +111,32 @@ Registrado el: ${fechaRegistro}`, { parse_mode: 'Markdown' });
             } else {
                 planMsg += `\n\nPuedes administrar tu forma de pago y descargar facturas ingresando a tu portal con tu usuario de Telegram: ${process.env.BASE_URL}/portal.html`;
             }
-            await bot.sendMessage(chatId, planMsg, { parse_mode: 'Markdown' });
+            await sendChannelMessage(bot, chatId, planMsg, { parse_mode: 'Markdown' }, channel);
             return true;
 
         case '/upgrade':
             if (user.plan !== 'starter' && user.plan_status === 'active') {
-                await bot.sendMessage(chatId, `¡Ya tienes una suscripción activa (${user.plan.toUpperCase()})! Si deseas cambiarla, ingresa a tu portal de cliente: ${process.env.BASE_URL}/portal.html`);
+                await sendChannelMessage(bot, chatId, `¡Ya tienes una suscripción activa (${user.plan.toUpperCase()})! Si deseas cambiarla, ingresa a tu portal de cliente: ${process.env.BASE_URL}/portal.html`, {}, channel);
             } else {
-                await bot.sendMessage(chatId, `🚀 *Sube de Nivel en KODA*\n\nEl plan Starter te permite 15 mensajes al día y memoria de 3 días.\nCon los planes de pago obtienes Memoria Ilimitada, Mensajes Diarios Ilimitados, Avisos Proactivos y más.\n\nEscoge tu plan e inicia tu Trial de 3 días GRATIS aquí: ${process.env.BASE_URL}`);
+                await sendChannelMessage(bot, chatId, `🚀 *Sube de Nivel en KODA*\n\nEl plan Starter te permite 15 mensajes al día y memoria de 3 días.\nCon los planes de pago obtienes Memoria Ilimitada, Mensajes Diarios Ilimitados, Avisos Proactivos y más.\n\nEscoge tu plan e inicia tu Trial de 3 días GRATIS aquí: ${process.env.BASE_URL}`, {}, channel);
             }
             return true;
 
         case '/cancelar':
             if (user.plan === 'starter') {
-                await bot.sendMessage(chatId, 'Actualmente estás en el plan Starter gratuito. No hay suscripciones de pago que cancelar.');
+                await sendChannelMessage(bot, chatId, 'Actualmente estás en el plan Starter gratuito. No hay suscripciones de pago que cancelar.', {}, channel);
             } else {
-                await bot.sendMessage(chatId, `⚠️ Si deseas cancelar tu suscripción a KODA, por favor ingresa a tu Portal de Cliente en el siguiente enlace y haz clic en "Cancelar Plan":\n${process.env.BASE_URL}/portal.html`);
+                await sendChannelMessage(bot, chatId, `⚠️ Si deseas cancelar tu suscripción a KODA, por favor ingresa a tu Portal de Cliente en el siguiente enlace y haz clic en "Cancelar Plan":\n${process.env.BASE_URL}/portal.html`, {}, channel);
             }
             return true;
 
+        case '/habitos':
+            const { sendHabitsList } = require('./habits');
+            await sendHabitsList(bot, chatId, user.id);
+            return true;
+
         default:
-            await bot.sendMessage(chatId, 'Comando no reconocido. Prueba /ayuda');
+            await sendChannelMessage(bot, chatId, 'Comando no reconocido. Prueba /ayuda', {}, channel);
             return true;
     }
 }

@@ -78,6 +78,36 @@ function parseActions(text) {
                 actions.push({ type, payload: { alias, tone, summary } });
             }
         }
+        else if (type === 'CREATE_HABIT') {
+            // Formato: nombre|descripcion|frecuencia|hora_recordatorio
+            const habitParts = argsRaw.split('|');
+            if (habitParts.length >= 1) {
+                const name = habitParts[0].trim();
+                const description = (habitParts[1] || '').trim();
+                const frequency = (habitParts[2] || 'daily').trim();
+                const reminder_time = (habitParts[3] || '20:00:00').trim();
+                actions.push({ type, payload: { name, description, frequency, reminder_time } });
+            }
+        }
+        else if (type === 'LOG_HABIT') {
+            // Formato: habit_id|completed|nota
+            const logParts = argsRaw.split('|');
+            if (logParts.length >= 2) {
+                const habit_id = logParts[0].trim();
+                const completed = logParts[1].trim().toLowerCase() === 'true';
+                const note = (logParts[2] || '').trim();
+                actions.push({ type, payload: { habit_id, completed, note } });
+            }
+        }
+        else if (type === 'UPDATE_HABIT_STATUS') {
+            // Formato: habit_id|status
+            const statusParts = argsRaw.split('|');
+            if (statusParts.length >= 2) {
+                const habit_id = statusParts[0].trim();
+                const status = statusParts[1].trim();
+                actions.push({ type, payload: { habit_id, status } });
+            }
+        }
 
         // Limpiar del texto original la ocurrencia que encontramos
         strippedText = strippedText.replace(match[0], '');

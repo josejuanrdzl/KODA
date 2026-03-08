@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const db = require('./supabase');
 const claude = require('./claude');
+const { sendChannelMessage } = require('../utils/messenger');
 
 async function getLastProactiveSent(user_id, type) {
     const { data, error } = await db.supabase
@@ -116,19 +117,24 @@ function startCron(bot) {
                         const { parseActions } = require('../utils/actionParser');
                         const { strippedText } = parseActions(aiResponse.text);
 
-                        try {
-                            await bot.sendMessage(user.telegram_id, strippedText, { parse_mode: 'Markdown' });
-                        } catch (sendErr) {
-                            await bot.sendMessage(user.telegram_id, strippedText);
-                        }
+                        const channel = user.whatsapp_id ? 'whatsapp' : 'telegram';
+                        const targetId = channel === 'whatsapp' ? user.whatsapp_id : user.telegram_id;
 
-                        await db.saveMessage({
-                            user_id: user.id,
-                            channel: 'telegram',
-                            role: 'assistant',
-                            content: strippedText,
-                            content_type: 'text'
-                        });
+                        if (targetId) {
+                            try {
+                                await sendChannelMessage(bot, targetId, strippedText, { parse_mode: 'Markdown' }, channel);
+                            } catch (sendErr) {
+                                await sendChannelMessage(bot, targetId, strippedText, {}, channel);
+                            }
+
+                            await db.saveMessage({
+                                user_id: user.id,
+                                channel: channel,
+                                role: 'assistant',
+                                content: strippedText,
+                                content_type: 'text'
+                            });
+                        }
 
                         await markProactiveSent(user.id, activeType, todayStr);
                     }
