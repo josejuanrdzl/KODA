@@ -1,12 +1,56 @@
 const db = require('../services/supabase');
 const claude = require('../services/claude');
 const { parseActions } = require('../utils/actionParser');
+const whisper = require('../services/whisper'); // Nuevo servicio Whisper
 
 async function handleMainFlow(bot, msg, user) {
 
     const telegramId = user.telegram_id;
     const chatId = msg.chat.id;
     let userText = msg.text || '';
+    let isAudio = false;
+
+    // Detectar si el mensaje es de voz, audio o video_note
+    if (msg.voice || msg.audio || msg.video_note) {
+        isAudio = true;
+
+        let fileId = null;
+        let duration = 0;
+
+        if (msg.voice) {
+            fileId = msg.voice.file_id;
+            duration = msg.voice.duration;
+        } else if (msg.audio) {
+            fileId = msg.audio.file_id;
+            duration = msg.audio.duration;
+        } else if (msg.video_note) {
+            fileId = msg.video_note.file_id;
+            duration = msg.video_note.duration;
+        }
+
+        // Mostrar indicador temporal
+        const tempMsg = await bot.sendMessage(chatId, "🎙️ Transcribiendo tu audio...");
+
+        // Llamar a Whisper
+        const transcript = await whisper.transcribeAudio(bot, fileId);
+
+        // Borrar el mensaje de "Transcribiendo"
+        try {
+            await bot.deleteMessage(chatId, tempMsg.message_id);
+        } catch (e) { console.log('Error borrando msj transcribiendo', e); }
+
+        if (!transcript) {
+            await bot.sendMessage(chatId, "No logré entender el audio o hubo un problema al transcribirlo, ¿puedes repetirlo o escribirlo?");
+            return; // Terminar flujo
+        }
+
+        userText = transcript;
+
+        // Agregar nota interna si el audio dura más de 5 minutos (300 segundos)
+        if (duration > 300) {
+            userText += `\n\n[INSTRUCCIÓN INTERNA: Este audio duró más de 5 minutos. Si el usuario te estaba dictando algo largo y notas que hay valor en conservarlo, ofrécele al final de tu respuesta guardarlo como una nota larga (SAVE_NOTE).]`;
+        }
+    }
 
     // Detectar reenvíos (forwards de Telegram)
     const isForwarded = Boolean(msg.forward_date || msg.forward_from || msg.forward_origin || msg.forward_sender_name);
@@ -34,14 +78,21 @@ async function handleMainFlow(bot, msg, user) {
         messages_today: (user.messages_today || 0) + 1
     });
 
-    // Guardar mensaje entrante
-    await db.saveMessage({
+    // Construir el payload del mensaje
+    const messagePayload = {
         user_id: user.id,
         channel: 'telegram',
         role: 'user',
         content: userText,
-        content_type: 'text'
-    });
+        content_type: isAudio ? 'audio' : 'text'
+    };
+
+    if (isAudio) {
+        messagePayload.audio_transcript = userText;
+    }
+
+    // Guardar mensaje entrante
+    await db.saveMessage(messagePayload);
 
     // Notificar al usuario que estamos pensando
     bot.sendChatAction(chatId, 'typing');

@@ -15,13 +15,15 @@ async function handleCommand(bot, msg, user) {
             await bot.sendMessage(chatId, `🧠 *Comandos Disponibles KODA*
 /notas o /notes — Lista tus últimas notas.
 /recordatorios o /reminders — Lista tus recordatorios activos.
-/config o /configurar — (Próximamente) Menú de configuración.
+/config o /configurar — Menú de configuración.
 /perfil o /profile — Muestra tu perfil actual.
 /diario o /journal — Entrada formal en tu diario.
 /plan o /suscripcion — Revisa el estado de tu plan y facturación.
 /upgrade — Mejora tu plan para quitar límites.
 /cancelar — Cancela tu suscripción actual.
-/feedback — Envía sugerencias sobre mi funcionamiento.`, { parse_mode: 'Markdown' });
+/feedback — Envía sugerencias sobre mi funcionamiento.
+
+🎙️ *Nuevo:* ¡Ya recibo notas de voz y mensajes de video para transcribir automáticamente!`, { parse_mode: 'Markdown' });
             return true;
 
         case '/notas':

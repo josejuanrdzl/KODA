@@ -44,13 +44,9 @@ app.post('/webhook', async (req, res) => {
     if (!update.message) return; // Ignore updates that aren't messages for now
 
     const msg = update.message;
-    // Solo procesamos texto por ahora, como solicitó el usuario en la fase 1 (omitir audio)
-    if (!msg.text) {
-        if (msg.voice) {
-            await bot.sendMessage(msg.chat.id, "Por ahora solo proceso texto. El soporte de voz vendrá en una próxima actualización.");
-            return;
-        }
-        await bot.sendMessage(msg.chat.id, "Por ahora solo proceso texto. Las imágenes y otros elementos están en mi roadmap.");
+    // Procesar texto, voz, audio o video_note
+    if (!msg.text && !msg.voice && !msg.audio && !msg.video_note) {
+        await bot.sendMessage(msg.chat.id, "Por ahora solo proceso texto o notas de voz/video. Las imágenes y otros elementos están en mi roadmap.");
         return;
     }
 
