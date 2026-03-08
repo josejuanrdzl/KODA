@@ -7,9 +7,18 @@ const { OpenAI } = require('openai');
 // Configuración de FFmpeg para usar los binarios instalados
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
+let openai = null;
+try {
+    if (process.env.OPENAI_API_KEY) {
+        openai = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY,
+        });
+    } else {
+        console.warn("⚠️ OPENAI_API_KEY no detectada en las variables de entorno. La transcripción de audio (Whisper) fallará si se intenta usar.");
+    }
+} catch (error) {
+    console.warn("Error al inicializar OpenAI (Whisper estará deshabilitado):", error.message);
+}
 
 /**
  * Descarga y transcribe un archivo de audio/voz de Telegram utilizando OpenAI Whisper
@@ -52,6 +61,9 @@ async function transcribeAudio(bot, fileId) {
         });
 
         console.log(`Enviando MP3 a OpenAI Whisper...`);
+        if (!openai) {
+            throw new Error("Cliente OpenAI no inicializado por falta de OPENAI_API_KEY.");
+        }
         // Transcribir con OpenAI Whisper
         const transcription = await openai.audio.transcriptions.create({
             file: fs.createReadStream(outputPath),
