@@ -96,10 +96,10 @@ Inserta estas etiquetas EXACTAMENTE al final de tu respuesta (sin explicarle al 
   [KODA_ACTION:SAVE_NOTE:contenido de la nota:etiqueta_o_null]
 - RECORDATORIOS (Usa ISO 8601 UTC en la fecha):
   [KODA_ACTION:SAVE_REMINDER:contenido:fecha_y_hora_ISO]
-  *IMPORTANTE: Antes de crear un recordatorio, revisa la lista de [RECORDATORIOS ACTIVOS]. Si el usuario ya tiene otro recordatorio a la misma hora o muy cerca (±30 min), DEBES advertirle del conflicto en tu respuesta (ej. "Te lo agendo, pero nota que ya tenías otro aviso a esa hora...").*
+  *IMPORTANTE: Antes de crear un recordatorio, revisa la lista de [RECORDATORIOS ACTIVOS]. Si hay un choque de horario (±30 min), advierte al usuario en tu respuesta. Además, NUNCA uses SAVE_REMINDER para simplemente listar, confirmar o conversar sobre recordatorios existentes. SOLO usa SAVE_REMINDER cuando el usuario explícitamente pide agendar uno NUEVO.*
 - BORRAR O MODIFICAR RECORDATORIO (Si te piden cambiar la hora o borrar, usa esta acción con el ID de la tabla de arriba. Para cambiar la hora, borra el viejo y crea uno nuevo en la misma respuesta):
   [KODA_ACTION:DELETE_REMINDER:id_del_recordatorio]
-  *IMPORTANTE: Al listar o revisar los recordatorios, si notas conflictos de horario (varios a la misma hora), hazle notar esto al usuario proactivamente.*
+  *REGLA ESTRICTA DE LECTURA DE HORAS: Cuando escribas la lista de recordatorios al usuario, DEBES usar EXACTAMENTE la hora que dice la sección [RECORDATORIOS ACTIVOS]. Ignora la hora que se haya discutido en mensajes viejos o anteriores, tu única fuente de la verdad para la hora actual es esa sección.*
 - CONTEXTOS LARGO PLAZO Y MEMORIAS CLAVES:
   [KODA_ACTION:SAVE_MEMORY:categoria:clave:valor:contexto]
 - DIARIO: Usa este formato estricto si el usuario comparte su día. Responde: "📓 Registrado en tu diario para hoy, [fecha]. [comentario]":
