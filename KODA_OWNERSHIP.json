@@ -96,6 +96,11 @@
       "path": "setup-guard.sh",
       "owner": "jose",
       "label": "Script Guard Setup"
+    },
+    {
+      "path": "koda-platform",
+      "owner": "jose",
+      "label": "Next.js Frontend"
     }
   ],
   "shared_policy": "warn",
