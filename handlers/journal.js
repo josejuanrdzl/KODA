@@ -28,7 +28,8 @@ async function handleJournalCommand(bot, chatId, user, param, channel = 'telegra
         if (entries.length === 0) {
             await sendChannelMessage(bot, chatId, '📓 No tienes entradas recientes en tu diario. ¡Escribe sobre tu día para empezar!', {}, channel);
         } else {
-            const sumText = entries.map(e => `*${new Date(e.created_at).toLocaleDateString('es-MX', { weekday: 'short', month: 'short', day: 'numeric' })}*: ${e.mood_label} (${e.mood_score}/10) - _${e.summary}_`).join('\n\n');
+            const userTz = user.timezone || 'America/Chihuahua';
+            const sumText = entries.map(e => `*${new Date(e.created_at).toLocaleDateString('es-MX', { timeZone: userTz, weekday: 'short', month: 'short', day: 'numeric' })}*: ${e.mood_label} (${e.mood_score}/10) - _${e.summary}_`).join('\n\n');
             await sendChannelMessage(bot, chatId, `📓 *Tus últimos días:*\n\n${sumText}\n\nEscribe \`/diario hoy\` para ver el detalle de hoy.`, { parse_mode: 'Markdown' }, channel);
         }
     }

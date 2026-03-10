@@ -1,54 +1,54 @@
 if (process.env.NODE_ENV !== 'production') {
-    require('dotenv').config({ ignoreEnvFile: true, silent: true });
+  require('dotenv').config({ ignoreEnvFile: true, silent: true });
 }
 const { Anthropic } = require('@anthropic-ai/sdk');
 
 const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 function buildSystemPrompt(user, memories, notes, reminders, recentJournals = [], emotionalTimeline = [], activeHabits = []) {
-    const dateObj = new Date();
-    const tz = user.timezone || 'America/Chihuahua';
-    const dateStr = dateObj.toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: tz });
-    const timeStr = dateObj.toLocaleTimeString('es-MX', { timeZone: tz });
-    const isoStr = dateObj.toISOString();
-    const nowText = `${dateStr}, hora local: ${timeStr} (ISO UTC actual: ${isoStr})`;
+  const dateObj = new Date();
+  const tz = user.timezone || 'America/Chihuahua';
+  const dateStr = dateObj.toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: tz });
+  const timeStr = dateObj.toLocaleTimeString('es-MX', { timeZone: tz });
+  const isoStr = dateObj.toISOString();
+  const nowText = `${dateStr}, hora local: ${timeStr} (ISO UTC actual: ${isoStr})`;
 
-    let genderPrompt = "Preséntate sin género específico. Usa el nombre KODA como referencia.";
-    if (user.gender === 'masculino') genderPrompt = "Eres un asistente masculino. Usa concordancia gramatical masculina.";
-    if (user.gender === 'femenino') genderPrompt = "Eres una asistente femenina. Usa concordancia gramatical femenina.";
+  let genderPrompt = "Preséntate sin género específico. Usa el nombre KODA como referencia.";
+  if (user.gender === 'masculino') genderPrompt = "Eres un asistente masculino. Usa concordancia gramatical masculina.";
+  if (user.gender === 'femenino') genderPrompt = "Eres una asistente femenina. Usa concordancia gramatical femenina.";
 
-    let tonePrompt = "Tu tono es casual, cercano, y cálido. Como un amigo muy organizado.";
-    if (user.tone === 'profesional') tonePrompt = "Tu tono es formal, ejecutivo, y cortés. Como un asistente de directivo.";
-    if (user.tone === 'directo') tonePrompt = "Tu tono es sin rodeos y eficiente. Máximas palabras mínimas.";
-    if (user.tone === 'divertido') tonePrompt = "Tu tono es energético con humor ligero y emojis ocasionales.";
+  let tonePrompt = "Tu tono es casual, cercano, y cálido. Como un amigo muy organizado.";
+  if (user.tone === 'profesional') tonePrompt = "Tu tono es formal, ejecutivo, y cortés. Como un asistente de directivo.";
+  if (user.tone === 'directo') tonePrompt = "Tu tono es sin rodeos y eficiente. Máximas palabras mínimas.";
+  if (user.tone === 'divertido') tonePrompt = "Tu tono es energético con humor ligero y emojis ocasionales.";
 
-    let memoriesText = memories.length > 0
-        ? memories.map(m => `- ${m.category}: ${m.key} = ${m.value}`).join('\\n')
-        : "Sin memorias recientes.";
+  let memoriesText = memories.length > 0
+    ? memories.map(m => `- ${m.category}: ${m.key} = ${m.value}`).join('\\n')
+    : "Sin memorias recientes.";
 
-    let notesText = notes.length > 0
-        ? notes.map(n => `- [${n.tag || 'general'}] ${n.content}`).join('\\n')
-        : "Sin notas recientes.";
+  let notesText = notes.length > 0
+    ? notes.map(n => `- [${n.tag || 'general'}] ${n.content}`).join('\\n')
+    : "Sin notas recientes.";
 
-    let remindersText = reminders.length > 0
-        ? reminders.map(r => `- ${r.content} (Para: ${new Date(r.remind_at).toLocaleString()})`).join('\\n')
-        : "Sin recordatorios activos.";
+  let remindersText = reminders.length > 0
+    ? reminders.map(r => `- ${r.content} (Para: ${new Date(r.remind_at).toLocaleString('es-MX', { timeZone: tz })})`).join('\\n')
+    : "Sin recordatorios activos.";
 
-    let emotionalText = emotionalTimeline.length > 0
-        ? "El estado emocional reciente fluctúa así:\\n" + emotionalTimeline.map(e => `- Fecha: ${new Date(e.created_at).toLocaleDateString()}, Etiqueta: ${e.mood_label}, Score: ${e.mood_score}/10`).join('\\n')
-        : "No hay registros emocionales recientes.";
+  let emotionalText = emotionalTimeline.length > 0
+    ? "El estado emocional reciente fluctúa así:\\n" + emotionalTimeline.map(e => `- Fecha: ${new Date(e.created_at).toLocaleDateString('es-MX', { timeZone: tz })}, Etiqueta: ${e.mood_label}, Score: ${e.mood_score}/10`).join('\\n')
+    : "No hay registros emocionales recientes.";
 
-    let journalsText = recentJournals.length > 0
-        ? "Últimas entradas del diario:\\n" + recentJournals.map(j => `- Fecha: ${new Date(j.created_at).toLocaleDateString()}:\\n${j.summary}`).join('\\n')
-        : "No hay entradas de diario recientes.";
+  let journalsText = recentJournals.length > 0
+    ? "Últimas entradas del diario:\\n" + recentJournals.map(j => `- Fecha: ${new Date(j.created_at).toLocaleDateString('es-MX', { timeZone: tz })}:\\n${j.summary}`).join('\\n')
+    : "No hay entradas de diario recientes.";
 
-    let habitsText = activeHabits.length > 0
-        ? "Hábitos activos del usuario (id | nombre | racha actual | total):\\n" + activeHabits.map(h => `- ${h.id} | ${h.name} | racha: ${h.current_streak} días | total completado: ${h.total_completions} veces`).join('\\n')
-        : "El usuario no está rastreando ningún hábito actualmente.";
+  let habitsText = activeHabits.length > 0
+    ? "Hábitos activos del usuario (id | nombre | racha actual | total):\\n" + activeHabits.map(h => `- ${h.id} | ${h.name} | racha: ${h.current_streak} días | total completado: ${h.total_completions} veces`).join('\\n')
+    : "El usuario no está rastreando ningún hábito actualmente.";
 
-    return `[IDENTIDAD]
+  return `[IDENTIDAD]
 Eres KODA, un asistente personal con IA. Tu nombre es KODA (siempre en mayúsculas cuando te refieras a ti mismo).
 
 [GÉNERO]
@@ -115,34 +115,34 @@ DATO IMPORTANTE: Responde motivando al usuario cuando completa un hábito. Si ti
 }
 
 async function generateResponse(user, userMessage, chatHistory, memories, notes, reminders, recentJournals, emotionalTimeline, activeHabits = []) {
-    const systemPrompt = buildSystemPrompt(user, memories, notes, reminders, recentJournals, emotionalTimeline, activeHabits);
+  const systemPrompt = buildSystemPrompt(user, memories, notes, reminders, recentJournals, emotionalTimeline, activeHabits);
 
-    // Convert DB history to Anthropic format
-    const messages = chatHistory.map(msg => ({
-        role: msg.role === 'assistant' ? 'assistant' : 'user',
-        content: msg.content
-    }));
+  // Convert DB history to Anthropic format
+  const messages = chatHistory.map(msg => ({
+    role: msg.role === 'assistant' ? 'assistant' : 'user',
+    content: msg.content
+  }));
 
-    // Append the current message
-    messages.push({
-        role: 'user',
-        content: userMessage
-    });
+  // Append the current message
+  messages.push({
+    role: 'user',
+    content: userMessage
+  });
 
-    const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6', // Literal specification from user
-        max_tokens: 1000,
-        system: systemPrompt,
-        messages: messages,
-    });
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6', // Literal specification from user
+    max_tokens: 1000,
+    system: systemPrompt,
+    messages: messages,
+  });
 
-    return {
-        text: response.content[0].text,
-        tokensIn: response.usage.input_tokens,
-        tokensOut: response.usage.output_tokens
-    };
+  return {
+    text: response.content[0].text,
+    tokensIn: response.usage.input_tokens,
+    tokensOut: response.usage.output_tokens
+  };
 }
 
 module.exports = {
-    generateResponse
+  generateResponse
 };

@@ -46,14 +46,16 @@ async function handleCommand(bot, msg, user) {
             if (recordatorios.length === 0) {
                 await sendChannelMessage(bot, chatId, 'No tienes recordatorios activos.', {}, channel);
             } else {
-                const recText = recordatorios.map((r, i) => `${i + 1}. ${r.content} (🕒 ${new Date(r.remind_at).toLocaleString()})`).join('\n');
+                const userTz = user.timezone || 'America/Chihuahua';
+                const recText = recordatorios.map((r, i) => `${i + 1}. ${r.content} (🕒 ${new Date(r.remind_at).toLocaleString('es-MX', { timeZone: userTz })})`).join('\n');
                 await sendChannelMessage(bot, chatId, `⏰ *Tus recordatorios activos:*\n${recText}`, { parse_mode: 'Markdown' }, channel);
             }
             return true;
 
         case '/perfil':
         case '/profile':
-            const fechaRegistro = new Date(user.created_at).toLocaleDateString();
+            const userTzProfile = user.timezone || 'America/Chihuahua';
+            const fechaRegistro = new Date(user.created_at).toLocaleDateString('es-MX', { timeZone: userTzProfile });
             await sendChannelMessage(bot, chatId, `👤 *Perfil de ${user.name}*
 Tono: ${user.tone}
 Género: ${user.gender}
