@@ -278,7 +278,7 @@ async function getHabitsDueNow(timeString) {
   // timeString is like '20:00:00'
   const { data, error } = await supabase
     .from('habits')
-    .select('*, users(telegram_id)')
+    .select('*, users(telegram_id, whatsapp_id)')
     .eq('status', 'active')
     .eq('reminder_time', timeString);
 

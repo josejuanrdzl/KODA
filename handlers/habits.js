@@ -19,8 +19,8 @@ async function sendDailyCheckins(bot, groupedCheckins) {
         try {
             if (items.length === 0) continue;
 
-            const telegramId = items[0].telegram_id;
-            const whatsappId = items[0].whatsapp_id; // Suponiendo que items traen info de user
+            const telegramId = items[0].users?.telegram_id;
+            const whatsappId = items[0].users?.whatsapp_id;
             const channel = items[0].channel || (whatsappId ? 'whatsapp' : 'telegram');
             const targetId = channel === 'whatsapp' ? whatsappId : telegramId;
 
