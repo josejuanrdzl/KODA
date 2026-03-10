@@ -1,0 +1,130 @@
+name: 🛡 KODA Conflict Guard
+
+on:
+  push:
+    branches:
+      - "feature/**"
+      - "main"
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  conflict-guard:
+    name: Validar Propiedad de Archivos
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detectar archivos modificados
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+            FILES=$(git diff --name-only "$BASE" "$HEAD")
+          else
+            FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+          fi
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          echo "$FILES"     >> $GITHUB_OUTPUT
+          echo "EOF"        >> $GITHUB_OUTPUT
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Ejecutar KODA Conflict Guard
+        id: validate
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          FILES="${{ steps.changed.outputs.files }}"
+
+          if [ -z "$FILES" ]; then
+            echo "result=clean" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          OUTPUT=$(node scripts/koda-validate.js --branch "$BRANCH" --json $FILES 2>&1)
+          EXIT_CODE=$?
+          echo "json_output=$OUTPUT" >> $GITHUB_OUTPUT
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "result=blocked" >> $GITHUB_OUTPUT
+          else
+            echo "result=ok" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comentar resultado en PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const result = "${{ steps.validate.outputs.result }}";
+            const branch = "${{ github.head_ref }}";
+            const rawJson = process.env.VALIDATE_JSON || "{}";
+            let data = {};
+            try { data = JSON.parse(rawJson); } catch {}
+
+            const blocks   = (data.blocks   || []);
+            const warnings = (data.warnings || []);
+            const clean    = (data.clean    || []);
+            const owner    = data.self ?? "desconocido";
+
+            let body = "";
+            if (result === "blocked") {
+              body = `## 🚫 KODA Conflict Guard — PUSH BLOQUEADO\n\n`;
+              body += `**Rama:** \`${branch}\` | **Identificado como:** \`${owner}\`\n\n`;
+              body += `### Archivos bloqueados\n`;
+              for (const r of blocks) body += `- 🚫 \`${r.file}\` — ${r.message}\n`;
+              if (warnings.length > 0) {
+                body += `\n### ⚠ Archivos compartidos (coordinar)\n`;
+                for (const r of warnings) body += `- ⚠️ \`${r.file}\` — ${r.message}\n`;
+              }
+              body += `\n---\n> Mueve los cambios bloqueados a la rama correcta antes de hacer merge.`;
+            } else if (warnings.length > 0) {
+              body = `## ⚠️ KODA Conflict Guard — Advertencias\n\n`;
+              body += `**Rama:** \`${branch}\` | **Identificado como:** \`${owner}\`\n\n`;
+              for (const r of warnings) body += `- ⚠️ \`${r.file}\` — ${r.message}\n`;
+              body += `\n✅ Archivos limpios: ${clean.length}`;
+            } else {
+              body = `## ✅ KODA Conflict Guard — Todo en orden\n\n`;
+              body += `**Rama:** \`${branch}\` | **Identificado como:** \`${owner}\`\n\n`;
+              body += `${clean.length} archivo(s) validados. Sin conflictos.`;
+            }
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.includes("KODA Conflict Guard"));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                comment_id: existing.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: context.issue.number, body,
+              });
+            }
+        env:
+          VALIDATE_JSON: ${{ steps.validate.outputs.json_output }}
+
+      - name: Verificar resultado final
+        run: |
+          if [ "${{ steps.validate.outputs.result }}" = "blocked" ]; then
+            echo "❌ Push bloqueado por KODA Conflict Guard."
+            exit 1
+          fi
+          echo "✅ Validación exitosa."
