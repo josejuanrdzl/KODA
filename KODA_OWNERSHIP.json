@@ -4,24 +4,99 @@
     "project": "KODA",
     "description": "Source of truth para propiedad de módulos. Editar aquí y ambas ramas se actualizan.",
     "owners": {
-      "jose":   { "name": "José Juan", "branch": "feature/jose", "tool": "Antigravity" },
-      "colega": { "name": "Colega",    "branch": "feature/colega", "tool": "Lovable"   }
+      "jose": {
+        "name": "José Juan",
+        "branch": "feature/jose",
+        "tool": "Antigravity"
+      },
+      "colega": {
+        "name": "Colega",
+        "branch": "feature/colega",
+        "tool": "Lovable"
+      }
     }
   },
   "rules": [
-    { "path": "handlers",              "owner": "jose",   "label": "Handlers"            },
-    { "path": "routes",                "owner": "jose",   "label": "Routes"              },
-    { "path": "services",              "owner": "jose",   "label": "Services"            },
-    { "path": "utils",                 "owner": "shared", "label": "Utils compartidos"   },
-    { "path": "public",                "owner": "shared", "label": "Public"              },
-    { "path": "scripts",               "owner": "jose",   "label": "Scripts"             },
-    { "path": "package.json",          "owner": "shared", "label": "Dependencias"        },
-    { "path": ".env",                  "owner": "shared", "label": "Variables de entorno"},
-    { "path": "Procfile",              "owner": "jose",   "label": "Procfile"            },
-    { "path": "check_db.js",           "owner": "jose",   "label": "Check DB"            },
-    { "path": "check_msgs.js",         "owner": "jose",   "label": "Check Messages"      },
-    { "path": "check_tz.js",           "owner": "jose",   "label": "Check Timezone"      },
-    { "path": "KODA_DOCUMENTATION.md", "owner": "shared", "label": "Documentación"       }
+    {
+      "path": "handlers",
+      "owner": "jose",
+      "label": "Handlers"
+    },
+    {
+      "path": "routes",
+      "owner": "jose",
+      "label": "Routes"
+    },
+    {
+      "path": "services",
+      "owner": "jose",
+      "label": "Services"
+    },
+    {
+      "path": "utils",
+      "owner": "shared",
+      "label": "Utils compartidos"
+    },
+    {
+      "path": "public",
+      "owner": "shared",
+      "label": "Public"
+    },
+    {
+      "path": "scripts",
+      "owner": "jose",
+      "label": "Scripts"
+    },
+    {
+      "path": "package.json",
+      "owner": "shared",
+      "label": "Dependencias"
+    },
+    {
+      "path": ".env",
+      "owner": "shared",
+      "label": "Variables de entorno"
+    },
+    {
+      "path": "Procfile",
+      "owner": "jose",
+      "label": "Procfile"
+    },
+    {
+      "path": "check_db.js",
+      "owner": "jose",
+      "label": "Check DB"
+    },
+    {
+      "path": "check_msgs.js",
+      "owner": "jose",
+      "label": "Check Messages"
+    },
+    {
+      "path": "check_tz.js",
+      "owner": "jose",
+      "label": "Check Timezone"
+    },
+    {
+      "path": "KODA_DOCUMENTATION.md",
+      "owner": "shared",
+      "label": "Documentación"
+    },
+    {
+      "path": ".github/workflows",
+      "owner": "jose",
+      "label": "GitHub Actions"
+    },
+    {
+      "path": "KODA_OWNERSHIP.json",
+      "owner": "jose",
+      "label": "Propiedad del Guard"
+    },
+    {
+      "path": "setup-guard.sh",
+      "owner": "jose",
+      "label": "Script Guard Setup"
+    }
   ],
   "shared_policy": "warn",
   "unknown_policy": "block",
