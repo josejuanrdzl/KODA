@@ -5,26 +5,23 @@
     "description": "Source of truth para propiedad de módulos. Editar aquí y ambas ramas se actualizan.",
     "owners": {
       "jose":   { "name": "José Juan", "branch": "feature/jose", "tool": "Antigravity" },
-      "colega": { "name": "Colega",    "branch": "feature/colega", "tool": "Lovable"    }
+      "colega": { "name": "Colega",    "branch": "feature/colega", "tool": "Lovable"   }
     }
   },
   "rules": [
-    { "path": "src/components/shell",           "owner": "jose",   "label": "Shell / Layout"         },
-    { "path": "src/components/design-system",   "owner": "jose",   "label": "Design System"          },
-    { "path": "src/pages/auth",                 "owner": "jose",   "label": "Auth / Login"           },
-    { "path": "src/modules/accounting",         "owner": "jose",   "label": "Accounting (GL/AP/AR)"  },
-    { "path": "src/modules/config",             "owner": "jose",   "label": "Client Config"          },
-    { "path": "src/modules/masterdata",         "owner": "colega", "label": "Master Data"            },
-    { "path": "src/modules/reports",            "owner": "colega", "label": "Reports / Dashboards"   },
-    { "path": "src/modules/catalog",            "owner": "colega", "label": "Catálogos"              },
-    { "path": "supabase/migrations",            "owner": "jose",   "label": "DB Migrations"          },
-    { "path": "src/hooks",                      "owner": "shared", "label": "Hooks Compartidos"      },
-    { "path": "src/lib",                        "owner": "shared", "label": "Lib / Utils"            },
-    { "path": "src/types",                      "owner": "shared", "label": "Types / Interfaces"     },
-    { "path": "src/router",                     "owner": "shared", "label": "Router"                 },
-    { "path": "package.json",                   "owner": "shared", "label": "Dependencias"           },
-    { "path": "tailwind.config",                "owner": "jose",   "label": "Tailwind Config"        },
-    { "path": ".env",                           "owner": "shared", "label": "Variables de entorno"   }
+    { "path": "handlers",              "owner": "jose",   "label": "Handlers"            },
+    { "path": "routes",                "owner": "jose",   "label": "Routes"              },
+    { "path": "services",              "owner": "jose",   "label": "Services"            },
+    { "path": "utils",                 "owner": "shared", "label": "Utils compartidos"   },
+    { "path": "public",                "owner": "shared", "label": "Public"              },
+    { "path": "scripts",               "owner": "jose",   "label": "Scripts"             },
+    { "path": "package.json",          "owner": "shared", "label": "Dependencias"        },
+    { "path": ".env",                  "owner": "shared", "label": "Variables de entorno"},
+    { "path": "Procfile",              "owner": "jose",   "label": "Procfile"            },
+    { "path": "check_db.js",           "owner": "jose",   "label": "Check DB"            },
+    { "path": "check_msgs.js",         "owner": "jose",   "label": "Check Messages"      },
+    { "path": "check_tz.js",           "owner": "jose",   "label": "Check Timezone"      },
+    { "path": "KODA_DOCUMENTATION.md", "owner": "shared", "label": "Documentación"       }
   ],
   "shared_policy": "warn",
   "unknown_policy": "block",
