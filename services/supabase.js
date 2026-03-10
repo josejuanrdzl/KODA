@@ -150,6 +150,15 @@ async function getActiveReminders(user_id = null) {
   return data || [];
 }
 
+async function deleteReminder(id) {
+  const { error } = await supabase
+    .from('reminders')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
 async function markReminderSent(id) {
   const { error } = await supabase
     .from('reminders')
@@ -381,6 +390,7 @@ module.exports = {
   getRecentNotes,
   saveReminder,
   getActiveReminders,
+  deleteReminder,
   markReminderSent,
   saveMemory,
   getRecentMemories,

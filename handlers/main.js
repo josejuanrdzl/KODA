@@ -141,6 +141,9 @@ async function handleMainFlow(bot, msg, user) {
                 else if (action.type === 'SAVE_REMINDER') {
                     await db.saveReminder(user.id, action.payload.content, action.payload.remind_at);
                 }
+                else if (action.type === 'DELETE_REMINDER') {
+                    await db.deleteReminder(action.payload.id);
+                }
                 else if (action.type === 'SAVE_MEMORY') {
                     await db.saveMemory(user.id, action.payload.category, action.payload.key, action.payload.value, action.payload.context);
                 }

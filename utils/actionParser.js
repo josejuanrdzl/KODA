@@ -53,6 +53,10 @@ function parseActions(text) {
                 actions.push({ type, payload: { content, remind_at } });
             }
         }
+        else if (type === 'DELETE_REMINDER') {
+            const id = parts.join(':').trim();
+            actions.push({ type, payload: { id } });
+        }
         else if (type === 'SAVE_MEMORY') {
             // Formato: categoria:clave:valor:contexto
             if (parts.length >= 4) {

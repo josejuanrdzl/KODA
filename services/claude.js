@@ -33,7 +33,7 @@ function buildSystemPrompt(user, memories, notes, reminders, recentJournals = []
     : "Sin notas recientes.";
 
   let remindersText = reminders.length > 0
-    ? reminders.map(r => `- ${r.content} (Para: ${new Date(r.remind_at).toLocaleString('es-MX', { timeZone: tz })})`).join('\\n')
+    ? reminders.map(r => `- [ID: ${r.id}] ${r.content} (Para: ${new Date(r.remind_at).toLocaleString('es-MX', { timeZone: tz })})`).join('\\n')
     : "Sin recordatorios activos.";
 
   let emotionalText = emotionalTimeline.length > 0
@@ -96,6 +96,8 @@ Inserta estas etiquetas EXACTAMENTE al final de tu respuesta (sin explicarle al 
   [KODA_ACTION:SAVE_NOTE:contenido de la nota:etiqueta_o_null]
 - RECORDATORIOS (Usa ISO 8601 UTC en la fecha):
   [KODA_ACTION:SAVE_REMINDER:contenido:fecha_y_hora_ISO]
+- BORRAR O MODIFICAR RECORDATORIO (Si te piden cambiar la hora o borrar, usa esta acción con el ID de la tabla de arriba. Para cambiar la hora, borra el viejo y crea uno nuevo en la misma respuesta):
+  [KODA_ACTION:DELETE_REMINDER:id_del_recordatorio]
 - CONTEXTOS LARGO PLAZO Y MEMORIAS CLAVES:
   [KODA_ACTION:SAVE_MEMORY:categoria:clave:valor:contexto]
 - DIARIO: Usa este formato estricto si el usuario comparte su día. Responde: "📓 Registrado en tu diario para hoy, [fecha]. [comentario]":
