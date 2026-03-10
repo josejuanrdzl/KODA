@@ -33,15 +33,23 @@ function parseActions(text) {
         else if (type === 'SAVE_REMINDER') {
             // El formato de fecha ISO contiene ":" (ej. 2026-03-08T10:00:00Z), por lo que un simple split falla.
             // Extraer la fecha ISO 8601 del final de la cadena de forma segura:
-            const dateMatch = argsRaw.match(/^(.*?):(\d{4}-\d{2}-\d{2}T.*)$/);
+            const dateMatch = argsRaw.match(/^(.*?):\s*(\d{4}-\d{2}-\d{2}T.*?)\s*$/);
             if (dateMatch) {
-                const content = dateMatch[1];
-                const remind_at = dateMatch[2];
+                const content = dateMatch[1].trim();
+                const remind_at = dateMatch[2].trim();
                 actions.push({ type, payload: { content, remind_at } });
             } else {
                 // Fallback
-                const remind_at = parts.pop();
-                const content = parts.join(':');
+                let remind_at = parts.pop().trim();
+                let content = parts.join(':').trim();
+
+                // Validate if it's a valid date, otherwise default to tomorrow
+                if (isNaN(new Date(remind_at).getTime())) {
+                    const fallbackDate = new Date();
+                    fallbackDate.setDate(fallbackDate.getDate() + 1);
+                    remind_at = fallbackDate.toISOString();
+                }
+
                 actions.push({ type, payload: { content, remind_at } });
             }
         }

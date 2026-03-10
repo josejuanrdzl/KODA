@@ -134,30 +134,34 @@ async function handleMainFlow(bot, msg, user) {
         // 4. Ejecutar acciones detectadas
         for (const action of actions) {
             console.log('Detectada Acción de KODA:', action.type);
-            if (action.type === 'SAVE_NOTE') {
-                await db.saveNote(user.id, action.payload.content, action.payload.tag);
-            }
-            else if (action.type === 'SAVE_REMINDER') {
-                await db.saveReminder(user.id, action.payload.content, action.payload.remind_at);
-            }
-            else if (action.type === 'SAVE_MEMORY') {
-                await db.saveMemory(user.id, action.payload.category, action.payload.key, action.payload.value, action.payload.context);
-            }
-            else if (action.type === 'SAVE_JOURNAL') {
-                await db.saveJournalEntry(user.id, action.payload.content, action.payload.mood_score, action.payload.mood_label, action.payload.summary);
-                await db.saveEmotionalTimeline(user.id, action.payload.mood_score, action.payload.mood_label, 'diario');
-            }
-            else if (action.type === 'SAVE_ANALYSIS') {
-                await db.saveMessageAnalysis(user.id, msg.text || '', action.payload.alias, action.payload.tone, action.payload.summary);
-            }
-            else if (action.type === 'CREATE_HABIT') {
-                await db.createHabit(user.id, action.payload.name, action.payload.description, action.payload.frequency, action.payload.reminder_time);
-            }
-            else if (action.type === 'LOG_HABIT') {
-                await db.logHabitCompletion(action.payload.habit_id, user.id, action.payload.completed, action.payload.note);
-            }
-            else if (action.type === 'UPDATE_HABIT_STATUS') {
-                await db.updateHabitStatus(action.payload.habit_id, user.id, action.payload.status);
+            try {
+                if (action.type === 'SAVE_NOTE') {
+                    await db.saveNote(user.id, action.payload.content, action.payload.tag);
+                }
+                else if (action.type === 'SAVE_REMINDER') {
+                    await db.saveReminder(user.id, action.payload.content, action.payload.remind_at);
+                }
+                else if (action.type === 'SAVE_MEMORY') {
+                    await db.saveMemory(user.id, action.payload.category, action.payload.key, action.payload.value, action.payload.context);
+                }
+                else if (action.type === 'SAVE_JOURNAL') {
+                    await db.saveJournalEntry(user.id, action.payload.content, action.payload.mood_score, action.payload.mood_label, action.payload.summary);
+                    await db.saveEmotionalTimeline(user.id, action.payload.mood_score, action.payload.mood_label, 'diario');
+                }
+                else if (action.type === 'SAVE_ANALYSIS') {
+                    await db.saveMessageAnalysis(user.id, msg.text || '', action.payload.alias, action.payload.tone, action.payload.summary);
+                }
+                else if (action.type === 'CREATE_HABIT') {
+                    await db.createHabit(user.id, action.payload.name, action.payload.description, action.payload.frequency, action.payload.reminder_time);
+                }
+                else if (action.type === 'LOG_HABIT') {
+                    await db.logHabitCompletion(action.payload.habit_id, user.id, action.payload.completed, action.payload.note);
+                }
+                else if (action.type === 'UPDATE_HABIT_STATUS') {
+                    await db.updateHabitStatus(action.payload.habit_id, user.id, action.payload.status);
+                }
+            } catch (actionError) {
+                console.error(`Error procesando acción ${action.type}:`, actionError.message);
             }
         }
 
