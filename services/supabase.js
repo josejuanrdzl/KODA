@@ -3,10 +3,25 @@ if (process.env.NODE_ENV !== 'production') {
 }
 const { createClient } = require('@supabase/supabase-js');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const supabaseUrl = process.env.SUPABASE_URL || process.env.SUPABASE_URL_REST;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+let supabase;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("⚠️ [CRITICAL] SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no definidos. KODA no podrá conectar a la base de datos.");
+  // Proveemos un dummy client para no crashear, pero que falla gracefully en las queries
+  supabase = {
+    from: () => ({
+      select: () => ({ eq: () => ({ single: () => ({ error: { message: "DB no configurada" } }), limit: () => ({ error: null, data: [] }), order: () => ({ limit: () => ({ error: null, data: [] }) }), head: () => ({ error: null, count: 0 }) }), insert: () => ({ select: () => ({ single: () => ({ error: { message: "DB no configurada" } }) }) }) }),
+      insert: () => ({ error: { message: "DB no configurada" } }),
+      update: () => ({ eq: () => ({ select: () => ({ single: () => ({ error: { message: "DB no configurada" } }) }), error: { message: "DB no configurada" } }) }),
+      delete: () => ({ eq: () => ({ error: { message: "DB no configurada" } }) })
+    })
+  };
+} else {
+  supabase = createClient(supabaseUrl, supabaseKey);
+}
 
 async function getUserByChannelId(channel_id, channel) {
   const column = channel === 'whatsapp' ? 'whatsapp_id' : 'telegram_id';

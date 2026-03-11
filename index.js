@@ -1,9 +1,7 @@
 if (process.env.NODE_ENV !== 'production') {
     require('dotenv').config({ ignoreEnvFile: true, silent: true });
 }
-console.log('--- DEBUG: ENTORNO DISPONIBLE EN RAILWAY ---');
-console.log(Object.keys(process.env).join(', '));
-console.log('--------------------------------------------');
+
 const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
 const db = require('./services/supabase');
