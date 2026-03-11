@@ -48,6 +48,11 @@
       "label": "Scripts"
     },
     {
+      "path": "index.js",
+      "owner": "jose",
+      "label": "Main Entry Point"
+    },
+    {
       "path": "package.json",
       "owner": "shared",
       "label": "Dependencias"
