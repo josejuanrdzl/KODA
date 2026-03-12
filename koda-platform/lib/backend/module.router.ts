@@ -166,15 +166,16 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
     let injectedContext = "";
     const text = msg.text || '';
     
+    const injectionData: Record<string, string> = {};
     const injectionPromises = Object.entries(contextInjectors).map(async ([slug, injector]) => {
         if (injector.regex.test(text)) {
-            // Verify access
             const hasAccess = await checkModuleAccess(user, slug);
             if (hasAccess) {
                 try {
                     const data = await injector.handler(user, msg);
                     if (data) {
                         console.log(`[routeMessage] Contexto inyectado por módulo: ${slug}`);
+                        injectionData[slug] = data;
                         return `\n[SISTEMA - DATOS DE MÓDULO ${slug.toUpperCase()}]:\n${data}\n`;
                     }
                 } catch (e) {
@@ -194,5 +195,5 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
         msg.text = `${injectedContext}\n[MENSAJE DEL USUARIO]:\n${msg.text}`;
     }
 
-    return await handleMainFlow(bot, msg, user, options);
+    return await handleMainFlow(bot, msg, user, { ...options, injectionData });
 }

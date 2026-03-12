@@ -3,13 +3,17 @@ if (process.env.NODE_ENV !== 'production') {
 }
 const { createClient } = require('@supabase/supabase-js');
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.SUPABASE_URL_REST;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrlRaw = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL_REST;
+const supabaseKeyRaw = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+const supabaseUrl = supabaseUrlRaw ? supabaseUrlRaw.trim() : null;
+const supabaseKey = supabaseKeyRaw ? supabaseKeyRaw.trim() : null;
 
 let supabase;
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error("⚠️ [CRITICAL] SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no definidos. KODA no podrá conectar a la base de datos.");
+if (!supabaseUrl || !supabaseKey || !supabaseUrl.startsWith('http')) {
+  console.error("⚠️ [CRITICAL] SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no definidos o inválidos.");
+  console.error(`URL detectada: ${supabaseUrl ? (supabaseUrl.substring(0, 10) + '...') : 'null'}`);
   // Proveemos un dummy client para no crashear, pero que falla gracefully en las queries
   supabase = {
     from: () => ({

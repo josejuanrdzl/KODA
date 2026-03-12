@@ -9,8 +9,8 @@ const anthropic = new Anthropic({
 
 const { buildSystemPrompt } = require('../prompt.builder');
 
-async function generateResponse(user, userMessage, chatHistory, memories, notes, reminders, recentJournals, emotionalTimeline, activeHabits = [], disabledModules = [], model = 'claude-sonnet-4-6') {
-  const systemPrompt = buildSystemPrompt(user, memories, notes, reminders, recentJournals, emotionalTimeline, activeHabits, disabledModules);
+async function generateResponse(user, userMessage, chatHistory, memories, notes, reminders, recentJournals, emotionalTimeline, activeHabits = [], disabledModules = [], model = 'claude-sonnet-4-6', familyContext = null) {
+  const systemPrompt = buildSystemPrompt(user, memories, notes, reminders, recentJournals, emotionalTimeline, activeHabits, disabledModules, familyContext);
 
   // Convert DB history to Anthropic format
   const messages = chatHistory.map(msg => ({

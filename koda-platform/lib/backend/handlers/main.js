@@ -150,6 +150,10 @@ async function handleMainFlow(bot, msg, user, options = {}) {
         // Configurar modelo según intención
         const targetModel = classifyIntent(userText);
 
+        // Extraer contexto de módulos para el prompt del sistema
+        const injectionData = options.injectionData || {};
+        const familyContext = injectionData.familia || null;
+
         const aiResponse = await claude.generateResponse(
             user,
             userText,
@@ -161,7 +165,8 @@ async function handleMainFlow(bot, msg, user, options = {}) {
             emotionalTimeline,
             activeHabits,
             disabledModules,
-            targetModel
+            targetModel,
+            familyContext
         );
 
         // 3. Parsear acciones de la respuesta
