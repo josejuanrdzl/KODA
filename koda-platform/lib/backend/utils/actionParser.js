@@ -137,6 +137,25 @@ function parseActions(text) {
                 actions.push({ type, payload: { symptom } });
             }
         }
+        else if (type === 'ADD_SHOPPING_ITEM') {
+            // Formato: item1|item2
+            actions.push({ type, payload: { content: argsRaw.trim() } });
+        }
+        else if (type === 'MARK_SHOPPING_COMPLETED') {
+            // Formato: item1|item2
+            actions.push({ type, payload: { content: argsRaw.trim() } });
+        }
+        else if (type === 'CLEAR_SHOPPING_LIST') {
+            actions.push({ type, payload: {} });
+        }
+        else if (type === 'SAVE_FAMILY_MEMBER') {
+            // Formato: nombre|relacion|cumpleanos|escuela|hora_entrada|hora_salida
+            actions.push({ type, payload: { content: argsRaw.trim() } });
+        }
+        else if (type === 'SAVE_FAMILY_ACTIVITY') {
+            // Formato: nombre_del_familiar|nombre|dias_semana|hora_inicio|hora_fin|lugar
+            actions.push({ type, payload: { content: argsRaw.trim() } });
+        }
 
         // Limpiar del texto original la ocurrencia que encontramos
         strippedText = strippedText.replace(match[0], '');
