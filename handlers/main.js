@@ -1,10 +1,12 @@
 const db = require('../services/supabase');
 const claude = require('../services/claude');
 const { parseActions } = require('../utils/actionParser');
+const { classifyIntent } = require('../koda-platform/lib/backend/intent');
 const whisper = require('../services/whisper'); // Nuevo servicio Whisper
 const { sendChannelMessage } = require('../utils/messenger'); // Integración WhatsApp
+const { routeMessage } = require('../koda-platform/lib/backend/module.router'); // Modular router
 
-async function handleMainFlow(bot, msg, user) {
+async function handleMainFlow(bot, msg, user, options = {}) {
 
     const chatId = msg.chat.id;
     const channel = msg._channel || 'telegram';
@@ -63,12 +65,16 @@ async function handleMainFlow(bot, msg, user) {
 
     // --- ENFORCEMENT DE LÍMITES ---
     if (user.plan_status === 'suspended') {
-        await sendChannelMessage(bot, chatId, "⚠️ Tu cuenta está suspendida por falta de pago. Por favor actualiza tu método de pago ingresando a tu portal con el comando /plan.", {}, channel);
+        const text = "⚠️ Tu cuenta está suspendida por falta de pago. Por favor actualiza tu método de pago ingresando a tu portal con el comando /plan.";
+        if (options.returnReply) return text;
+        await sendChannelMessage(bot, chatId, text, {}, channel);
         return;
     }
 
     if (user.plan === 'starter' && (user.messages_today || 0) >= 15) {
-        await sendChannelMessage(bot, chatId, "⏳ Alcanzaste tu límite de 15 mensajes hoy en el plan Starter. Para seguir platicando y desbloquear todo el potencial de KODA, por favor actualiza tu plan con el comando /upgrade.", {}, channel);
+        const text = "⏳ Alcanzaste tu límite de 15 mensajes hoy en el plan Starter. Para seguir platicando y desbloquear todo el potencial de KODA, por favor actualiza tu plan con el comando /upgrade.";
+        if (options.returnReply) return text;
+        await sendChannelMessage(bot, chatId, text, {}, channel);
         return;
     }
     // ------------------------------
@@ -95,6 +101,36 @@ async function handleMainFlow(bot, msg, user) {
     // Guardar mensaje entrante
     await db.saveMessage(messagePayload);
 
+    // Context Injection Check (Read-Only Modules / FX Rates, Weather, etc.)
+    // Note: This logic is adapted from the modular router to maintain context parity
+    let injectedContext = "";
+    const { contextInjectors, checkModuleAccess } = require('../koda-platform/lib/backend/module.router');
+
+    const injectionPromises = Object.entries(contextInjectors).map(async ([slug, injector]) => {
+        if (injector.regex.test(userText)) {
+            const hasAccess = await checkModuleAccess(user, slug);
+            if (hasAccess) {
+                try {
+                    const data = await injector.handler(user, msg);
+                    if (data) {
+                        console.log(`[handleMainFlow] Contexto inyectado por módulo: ${slug}`);
+                        return `\n[SISTEMA - DATOS DE MÓDULO ${slug.toUpperCase()}]:\n${data}\n`;
+                    }
+                } catch (e) {
+                    console.error(`[handleMainFlow] Error injecting context for ${slug}:`, e.message);
+                }
+            }
+        }
+        return null;
+    });
+
+    const injectionResults = await Promise.all(injectionPromises);
+    injectedContext = injectionResults.filter((r) => r !== null).join('');
+
+    if (injectedContext) {
+        userText = `${injectedContext}\n[MENSAJE DEL USUARIO]:\n${userText}`;
+    }
+
     // Notificar al usuario que estamos pensando (Solo soportado real en Telegram)
     if (channel === 'telegram') {
         bot.sendChatAction(chatId, 'typing');
@@ -116,6 +152,9 @@ async function handleMainFlow(bot, msg, user) {
         // Asegurarse de que chatHistory esté en el orden correcto (los más antiguos primero para Claude)
         const chatHistory = [...recentMessages].reverse();
 
+        // Configurar modelo según intención
+        const targetModel = classifyIntent(userText);
+
         const aiResponse = await claude.generateResponse(
             user,
             userText,
@@ -125,7 +164,9 @@ async function handleMainFlow(bot, msg, user) {
             activeReminders,
             recentJournals,
             emotionalTimeline,
-            activeHabits
+            activeHabits,
+            [], // disabledModules
+            targetModel // targetModel
         );
 
         // 3. Parsear acciones de la respuesta
@@ -177,10 +218,14 @@ async function handleMainFlow(bot, msg, user) {
             content_type: 'text',
             tokens_in: aiResponse.tokensIn,
             tokens_out: aiResponse.tokensOut,
-            model_used: 'claude-sonnet-4-6'
+            model_used: targetModel
         });
 
         // 6. Enviar mensaje de vuelta al usuario
+        if (options.returnReply) {
+            return strippedText;
+        }
+
         try {
             await sendChannelMessage(bot, chatId, strippedText, { parse_mode: 'Markdown' }, channel);
         } catch (sendErr) {
@@ -190,7 +235,9 @@ async function handleMainFlow(bot, msg, user) {
 
     } catch (error) {
         console.error('Error in main flow:', error);
-        await sendChannelMessage(bot, chatId, 'Estoy teniendo problemas técnicos. Inténtalo en unos minutos.', {}, channel);
+        const errText = 'Estoy teniendo problemas técnicos. Inténtalo en unos minutos.';
+        if (options.returnReply) return errText;
+        await sendChannelMessage(bot, chatId, errText, {}, channel);
     }
 }
 

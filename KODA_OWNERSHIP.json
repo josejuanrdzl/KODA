@@ -106,6 +106,31 @@
       "path": "koda-platform",
       "owner": "jose",
       "label": "Next.js Frontend"
+    },
+    {
+      "path": "fix-plans.js",
+      "owner": "jose",
+      "label": "Fix Plans Script"
+    },
+    {
+      "path": "fix-fx-plans.js",
+      "owner": "jose",
+      "label": "Fix FX Plans Script"
+    },
+    {
+      "path": "fix-sports-plans.js",
+      "owner": "jose",
+      "label": "Fix Sports Plans Script"
+    },
+    {
+      "path": "fix-spotify-plans.js",
+      "owner": "jose",
+      "label": "Fix Spotify Plans Script"
+    },
+    {
+      "path": "setup-lifestyle.sql",
+      "owner": "jose",
+      "label": "Lifestyle SQL Schema"
     }
   ],
   "shared_policy": "warn",
