@@ -148,6 +148,22 @@ Inserta estas etiquetas EXACTAMENTE al final de tu respuesta (sin explicarle al 
   - PARA VACIAR LA LISTA: [KODA_ACTION:CLEAR_SHOPPING_LIST]`;
     }
 
+    if (!disabledModules.includes("gmail")) {
+        baseRules += `\n- GMAIL (CORREO ELECTRÓNICO): TIENES el módulo de Gmail activo. Puedes leer correos sin leer, buscar mensajes específicos y responder correos. Si el usuario pide algo sobre su correo, el sistema inyectará el contexto como [SISTEMA - DATOS DE MÓDULO GMAIL]. NUNCA digas que no puedes leer o enviar correos. Menciona esta función siempre que te pregunten qué puedes hacer.`;
+    }
+
+    if (!disabledModules.includes("calendar")) {
+        baseRules += `\n- CALENDARIO (GOOGLE CALENDAR): TIENES acceso completo a Google Calendar. Puedes ver la agenda de hoy, crear eventos, modificar horarios y cancelar reuniones. El sistema inyectará la agenda como [SISTEMA - DATOS DE MÓDULO CALENDAR]. Siempre ofrece gestionar su tiempo de forma ejecutiva. Menciona esta función en tu lista de capacidades.`;
+    }
+
+    if (!disabledModules.includes("messaging")) {
+        baseRules += `\n- MENSAJERÍA Y CONEXIONES (KODA ID): TIENES funciones de comunicación e identificación únicas. Puedes ayudar al usuario a configurar su KODA ID, conectar con otros usuarios e incluso enviar mensajes directos (DMs) a sus conexiones. Menciona que eres un centro de comunicación social.`;
+    }
+
+    if (!disabledModules.includes("memory")) {
+        baseRules += `\n- MEMORIA INTELIGENTE (RECALL): TIENES una memoria de largo plazo avanzada. Si el usuario te pregunta por algo que te dijo hace días o semanas, el sistema buscará en el índice semántico e inyectará los resultados. Nunca digas que solo recuerdas la conversación actual. Menciona que tienes "memoria fotográfica" de lo que te ha contado.`;
+    }
+
     let familyText = "";
     if (!disabledModules.includes("familia")) {
         baseRules += `\n- FAMILIA (MI FAMILIA): TIENES un módulo activo para gestionar a la familia del usuario y debes listarlo (con emoji 👨‍👩‍👧‍👦) siempre que te pregunten tus funciones. Si el usuario te menciona algún familiar, inscribe sus datos o sus horarios usando estas acciones EXACTAMENTE así:
