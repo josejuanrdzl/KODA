@@ -77,7 +77,12 @@ function startCron(bot) {
                 let promptInstruction = '';
                 let injectedContext = '';
 
-                if (localHour === 8) {
+                const morningHour = user.proactive_good_morning ? parseInt(user.proactive_good_morning.split(':')[0]) : 8;
+                const middayHour = user.proactive_midday ? parseInt(user.proactive_midday.split(':')[0]) : 14;
+                const eveningHour = user.proactive_end_of_day ? parseInt(user.proactive_end_of_day.split(':')[0]) : 19;
+                const nightHour = user.proactive_good_night ? parseInt(user.proactive_good_night.split(':')[0]) : 22;
+
+                if (localHour === morningHour) {
                     activeType = 'morning';
                     promptInstruction = `Escribe un mensaje matutino muy completo y natural (estilo "Morning Briefing"). 
                     - Usa un tono ${user.plan === 'personal' || user.plan === 'starter' ? 'cálido y casual (lifestyle)' : 'profesional y ejecutivo'}.
@@ -86,19 +91,19 @@ function startCron(bot) {
                     - Máximo 300 palabras.`;
 
                     // SECTION 1: WEATHER (wttr.in)
-                    const hasWeather = await checkModuleAccess(user, 'weather');
-                    if (hasWeather) {
-                        try {
-                            const { data: locFacts } = await db.supabase
-                                .from('memories')
-                                .select('value')
-                                .eq('user_id', user.id)
-                                .eq('category', 'config')
-                                .or('key.eq.ciudad,key.eq.location')
-                                .limit(1);
+                const hasWeather = await checkModuleAccess(user, 'weather');
+                if (hasWeather) {
+                    try {
+                        const { data: locFacts } = await db.supabase
+                            .from('memories')
+                            .select('value')
+                            .eq('user_id', user.id)
+                            .eq('category', 'config')
+                            .eq('key', 'ciudad')
+                            .limit(1);
 
-                            const city = locFacts && locFacts.length > 0 ? locFacts[0].value : null;
-                            if (city) {
+                        const city = locFacts && locFacts.length > 0 ? locFacts[0].value : null;
+                        if (city) {
                                 const weatherRes = await axios.get(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
                                 if (weatherRes.data && weatherRes.data.current_condition) {
                                     const curr = weatherRes.data.current_condition[0];
@@ -304,10 +309,10 @@ function startCron(bot) {
                             console.error("Error fetching Calendar context for cron", e.message);
                         }
                     }
-                } else if (localHour === 14) {
+                } else if (localHour === middayHour) {
                     activeType = 'checkin';
                     promptInstruction = 'Escribe un mensaje casual para preguntar cómo va su tarde y recordarle tomar agua o estirarse.';
-                } else if (localHour === 19) {
+                } else if (localHour === eveningHour) {
                     activeType = 'evening';
                     promptInstruction = 'Escribe un mensaje de cierre de día laboral. Pregunta qué fue lo mejor de su día e invítalo a reflexionar escribiendo sobre su día (o usando /diario hoy).';
 
@@ -325,7 +330,7 @@ function startCron(bot) {
                             console.error("Error fetching shopping for proactive message", e);
                         }
                     }
-                } else if (localHour === 22) {
+                } else if (localHour === nightHour) {
                     activeType = 'night';
                     promptInstruction = 'Escribe un mensaje breve de buenas noches, ayudando a desconectar y deseando un buen descanso.';
                 }

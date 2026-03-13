@@ -2,7 +2,6 @@
 const db = require('./services/supabase');
 const { supabase } = db;
 const { handleCommand } = require('./handlers/commands');
-const { handleOnboarding } = require('./handlers/onboarding');
 const { handleMainFlow } = require('./handlers/main');
 
 // Import direct handlers
@@ -22,6 +21,9 @@ import { handleRecallIntent } from '../modules/memory/recall.handler';
 // Import executive handlers
 import { handleGmailModule } from '../modules/executive/gmail.handler';
 import { handleCalendarModule } from '../modules/executive/calendar.handler';
+
+// Import Settings handler
+import { handleSettings } from '../modules/onboarding/settings.handler';
 
 // Direct Intent Regex Map for Context Injection Handlers
 export const contextInjectors: Record<string, { regex: RegExp, handler: (user: any, msg: any) => Promise<string | null> }> = {
@@ -203,13 +205,63 @@ export async function performContextInjection(msg: any, user: any): Promise<stri
  * Routes an incoming message to the appropriate handler (onboarding, command, main flow).
  */
 export async function routeMessage(bot: any, msg: any, user: any, options: any): Promise<any> {
-    if (!user.onboarding_complete) {
-        return await handleOnboarding(bot, msg, user, options);
-    }
-
     // --- Messaging Interceptors ---
     // Handle Direct Messages & Chat Context
     if (await handleDirectMessages(bot, msg, user, options)) return;
+
+    // --- SETTINGS / CONFIGURATION INTERCEPTOR ---
+    const text = msg.text?.toLowerCase() || '';
+    const settingsTriggers = ["/settings", "configuración", "settings", "ayuda", "help", "¿qué puedes hacer?", "menú", "opciones", "reiniciar configuración", "reset", "tutorial", "¿cómo funciona?", "comandos"];
+    const messagingTriggers = ["configurar mensajes", "conectar con alguien", "cómo envío mensajes", "mensajería koda", "mi koda id", "username"];
+    const googleTriggers = ["conectar gmail", "conectar mi correo", "vincular google", "conectar calendario", "mi agenda", "mis correos", "revisar mi correo", "mi correo", "gmail"];
+
+    // --- Messaging Check (Interceptor) ---
+    if (messagingTriggers.some(t => text.includes(t)) || (text.includes("mensaje") && !user.koda_id)) {
+        // Redirect to Messaging Onboarding
+        await supabase.from('users').update({ 
+            active_context: { mode: 'messaging_onboarding', step: 'verify_id', data: {} } 
+        }).eq('id', user.id);
+        const settingsReply = await handleSettings(bot, msg, user, options);
+        if (settingsReply) return settingsReply;
+        return;
+    }
+
+    // --- Google Check (Interceptor) ---
+    if (googleTriggers.some(t => text.includes(t))) {
+        // Only redirect to onboarding if NOT connected or if explicit "conectar" keyword used
+        const { data: connector } = await supabase.from('connectors').select('id').eq('user_id', user.id).eq('type', 'gmail').maybeSingle();
+        const isExplicitConnect = text.includes("conectar") || text.includes("vincular");
+
+        if (!connector || isExplicitConnect) {
+            const moduleSlug = (text.includes("correo") || text.includes("gmail")) ? 'gmail' : 'calendar';
+            await supabase.from('users').update({ 
+                active_context: { mode: 'google_onboarding', step: 'check_plan', data: { module: moduleSlug } } 
+            }).eq('id', user.id);
+            const settingsReply = await handleSettings(bot, msg, user, options);
+            if (settingsReply) return settingsReply;
+            return;
+        }
+    }
+
+    if (user.active_context?.mode === 'settings' || user.active_context?.mode === 'messaging_onboarding' || user.active_context?.mode === 'google_onboarding' || settingsTriggers.some(t => text.includes(t))) {
+        const settingsReply = await handleSettings(bot, msg, user, options);
+        if (settingsReply) return settingsReply;
+        return; // Handled internally
+    }
+
+    // --- ADMIN COMMANDS ---
+    if (user.role === 'admin' && text.startsWith('/reset_onboarding')) {
+        const targetTelegramId = text.split(' ')[1];
+        if (!targetTelegramId) return "Uso: /reset_onboarding [telegram_id]";
+        
+        const { error } = await supabase.from('users').update({ 
+            onboarding_complete: false, 
+            active_context: { mode: 'onboarding', step: 0, data: {} } 
+        }).eq('telegram_id', targetTelegramId);
+        
+        if (error) return `Error al resetear onboarding: ${error.message}`;
+        return `✅ Onboarding reseteado para el usuario ${targetTelegramId}.`;
+    }
     
     // Handle KODA ID configuration
     if (await handleKodaIdOnboarding(bot, msg, user, options)) return;
