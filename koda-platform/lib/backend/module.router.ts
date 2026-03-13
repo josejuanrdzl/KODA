@@ -13,6 +13,16 @@ import { fetchSportsData } from './handlers/sports.handler';
 import { processLunaContext } from './handlers/luna.handler';
 import { getFamilyContext } from './handlers/familia.handler';
 
+// Import messaging handlers
+import { handleKodaIdOnboarding } from '../modules/messaging/koda-id.handler';
+import { handleConnections } from '../modules/messaging/connections.handler';
+import { handleDirectMessages } from '../modules/messaging/direct-messages.handler';
+import { handleRecallIntent } from '../modules/memory/recall.handler';
+
+// Import executive handlers
+import { handleGmailModule } from '../modules/executive/gmail.handler';
+import { handleCalendarModule } from '../modules/executive/calendar.handler';
+
 // Direct Intent Regex Map for Context Injection Handlers
 export const contextInjectors: Record<string, { regex: RegExp, handler: (user: any, msg: any) => Promise<string | null> }> = {
     'weather': {
@@ -150,19 +160,10 @@ export async function checkModuleAccess(user: any, moduleSlug: string): Promise<
 }
 
 /**
- * Routes an incoming message to the appropriate handler (onboarding, command, main flow).
+ * Performs context injection based on keywords in the message text.
+ * prepends the context data to msg.text if matches are found.
  */
-export async function routeMessage(bot: any, msg: any, user: any, options: any): Promise<any> {
-    if (!user.onboarding_complete) {
-        return await handleOnboarding(bot, msg, user, options);
-    }
-
-    const commandReply = await handleCommand(bot, msg, user, options);
-    if (commandReply) {
-        return commandReply;
-    }
-
-    // Context Injection Check (Read-Only Modules)
+export async function performContextInjection(msg: any, user: any): Promise<string> {
     let injectedContext = "";
     const text = msg.text || '';
     
@@ -174,15 +175,15 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
                 try {
                     const data = await injector.handler(user, msg);
                     if (data) {
-                        console.log(`[routeMessage] Contexto inyectado por módulo: ${slug}`);
+                        console.log(`[performContextInjection] Contexto inyectado por módulo: ${slug}`);
                         injectionData[slug] = data;
                         return `\n[SISTEMA - DATOS DE MÓDULO ${slug.toUpperCase()}]:\n${data}\n`;
                     }
                 } catch (e) {
-                    console.error(`[routeMessage] Error injecting context for ${slug}:`, e);
+                    console.error(`[performContextInjection] Error injecting context for ${slug}:`, e);
                 }
             } else {
-                console.log(`[routeMessage] Intent matched ${slug} but user lacks access.`);
+                console.log(`[performContextInjection] Intent matched ${slug} but user lacks access.`);
             }
         }
         return null;
@@ -194,6 +195,47 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
     if (injectedContext) {
         msg.text = `${injectedContext}\n[MENSAJE DEL USUARIO]:\n${msg.text}`;
     }
+    
+    return injectedContext;
+}
 
-    return await handleMainFlow(bot, msg, user, { ...options, injectionData });
+/**
+ * Routes an incoming message to the appropriate handler (onboarding, command, main flow).
+ */
+export async function routeMessage(bot: any, msg: any, user: any, options: any): Promise<any> {
+    if (!user.onboarding_complete) {
+        return await handleOnboarding(bot, msg, user, options);
+    }
+
+    // --- Messaging Interceptors ---
+    // Handle Direct Messages & Chat Context
+    if (await handleDirectMessages(bot, msg, user, options)) return;
+    
+    // Handle KODA ID configuration
+    if (await handleKodaIdOnboarding(bot, msg, user, options)) return;
+
+    // Handle User Connections & Invites
+    if (await handleConnections(bot, msg, user, options)) return;
+    // ------------------------------
+
+    const commandReply = await handleCommand(bot, msg, user, options);
+    if (commandReply) {
+        return commandReply;
+    }
+
+    // --- Memory Recall Intent ---
+    if (await handleRecallIntent(bot, msg, user, options)) return;
+
+    // --- Executive Modules ---
+    if (await checkModuleAccess(user, 'gmail')) {
+        if (await handleGmailModule(bot, msg, user, options)) return;
+    }
+    if (await checkModuleAccess(user, 'calendar')) {
+        if (await handleCalendarModule(bot, msg, user, options)) return;
+    }
+
+    // Context Injection Check (Read-Only Modules)
+    const injectedContext = await performContextInjection(msg, user);
+
+    return await handleMainFlow(bot, msg, user, { ...options, injectedContext });
 }

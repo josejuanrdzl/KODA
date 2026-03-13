@@ -5,7 +5,8 @@ const cache = new Map<string, { data: string, timestamp: number }>();
 
 export async function getWeather(userId: string, city?: string): Promise<string> {
     try {
-        const apiKey = process.env.OPENWEATHER_API_KEY;
+        const rawApiKey = process.env.OPENWEATHER_API_KEY;
+        const apiKey = rawApiKey ? rawApiKey.trim() : null;
         if (!apiKey) {
             return "No tengo el servicio de clima configurado en este momento.";
         }

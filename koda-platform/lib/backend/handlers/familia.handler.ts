@@ -2,7 +2,17 @@ import { supabase } from '../services/supabase';
 
 export async function getFamilyContext(userId: string, date?: string): Promise<string> {
   // Use today if no date provided
-  const queryDate = date ? new Date(date) : new Date();
+  // Use today if no date provided. Ensure date string doesn't shift due to UTC.
+  let queryDate: Date;
+  if (date) {
+    if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      queryDate = new Date(date + 'T00:00:00');
+    } else {
+      queryDate = new Date(date);
+    }
+  } else {
+    queryDate = new Date();
+  }
   const dayOfWeek = queryDate.getDay(); // 0 (Sun) - 6 (Sat)
 
   // 1. Get all family members for the user
@@ -21,7 +31,7 @@ export async function getFamilyContext(userId: string, date?: string): Promise<s
   }
 
   // 2. Fetch all activities for all members in parallel
-  const memberIds = members.map(m => m.id);
+  const memberIds: string[] = members.map((m: any) => m.id);
   
   const { data: allActivities, error: actError } = await supabase
       .from('family_activities')
@@ -35,7 +45,7 @@ export async function getFamilyContext(userId: string, date?: string): Promise<s
   }
 
   // Group activities by member_id for fast lookup
-  const activitiesByMemberId = (allActivities || []).reduce((acc: any, act: any) => {
+  const activitiesByMemberId = (allActivities || []).reduce((acc: Record<string, any[]>, act: any) => {
       if (!acc[act.member_id]) acc[act.member_id] = [];
       acc[act.member_id].push(act);
       return acc;
@@ -50,7 +60,8 @@ export async function getFamilyContext(userId: string, date?: string): Promise<s
     
     // Add age if birthdate exists
     if (member.birthdate) {
-        const birthDate = new Date(member.birthdate);
+        // member.birthdate is YYYY-MM-DD from DB
+        const birthDate = new Date(member.birthdate + 'T00:00:00'); 
         let age = queryDate.getFullYear() - birthDate.getFullYear();
         const m = queryDate.getMonth() - birthDate.getMonth();
         if (m < 0 || (m === 0 && queryDate.getDate() < birthDate.getDate())) {

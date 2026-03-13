@@ -5,7 +5,8 @@ const cache = new Map<string, { data: string, timestamp: number }>();
 
 export async function getExchangeRates(baseCurrency: string = 'MXN'): Promise<string> {
     try {
-        const apiKey = process.env.EXCHANGE_RATE_API_KEY;
+        const rawApiKey = process.env.EXCHANGE_RATE_API_KEY;
+        const apiKey = rawApiKey ? rawApiKey.trim() : null;
         if (!apiKey) {
             return "No tengo el servicio de tipo de cambio configurado en este momento.";
         }

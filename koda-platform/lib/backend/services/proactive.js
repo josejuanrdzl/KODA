@@ -1,4 +1,5 @@
 const cron = require('node-cron');
+const axios = require('axios');
 const db = require('./supabase');
 const claude = require('./claude');
 const { sendChannelMessage } = require('../utils/messenger');
@@ -78,71 +79,229 @@ function startCron(bot) {
 
                 if (localHour === 8) {
                     activeType = 'morning';
-                    promptInstruction = 'Escribe un mensaje corto y muy motivador de buenos días para empezar con energía. Incluye alguna curiosidad breve o consejo rápido.';
+                    promptInstruction = `Escribe un mensaje matutino muy completo y natural (estilo "Morning Briefing"). 
+                    - Usa un tono ${user.plan === 'personal' || user.plan === 'starter' ? 'cálido y casual (lifestyle)' : 'profesional y ejecutivo'}.
+                    - Integra las secciones de Clima, Tipo de Cambio, Familia y Deportes si están disponibles en el contexto inyectado.
+                    - Redacta de forma fluida, NO como una lista.
+                    - Máximo 300 palabras.`;
 
-                    // CHECK IF WEATHER MODULE IS ENABLED
+                    // SECTION 1: WEATHER (wttr.in)
                     const hasWeather = await checkModuleAccess(user, 'weather');
                     if (hasWeather) {
                         try {
-                            const weatherData = await getWeather(user.id);
-                            injectedContext += `\n[SISTEMA - DATOS DE MÓDULO WEATHER (PRONÓSTICO HOY)]:\n${weatherData}\nMenciona brevemente cómo estará el clima hoy en tu mensaje de buenos días de forma natural.`;
+                            const { data: locFacts } = await db.supabase
+                                .from('memories')
+                                .select('value')
+                                .eq('user_id', user.id)
+                                .eq('category', 'config')
+                                .or('key.eq.ciudad,key.eq.location')
+                                .limit(1);
+
+                            const city = locFacts && locFacts.length > 0 ? locFacts[0].value : null;
+                            if (city) {
+                                const weatherRes = await axios.get(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
+                                if (weatherRes.data && weatherRes.data.current_condition) {
+                                    const curr = weatherRes.data.current_condition[0];
+                                    const high = weatherRes.data.weather[0].maxtempC;
+                                    injectedContext += `\n[SISTEMA - DATOS DE MÓDULO WEATHER]:\nCiudad: ${city}, Temperatura: ${curr.temp_C}°C, Condición: ${curr.lang_es ? curr.lang_es[0].value : curr.weatherDesc[0].value}, Máxima hoy: ${high}°C\n`;
+                                }
+                            }
                         } catch (e) {
-                            console.error("Error fetching weather for proactive message", e);
+                            console.error("Error fetching wttr.in weather", e.message);
                         }
                     }
 
-                    // CHECK IF FX-RATES MODULE IS ENABLED
+                    // SECTION 2: FX RATES (Banxico)
                     const hasFxRates = await checkModuleAccess(user, 'fx-rates');
                     if (hasFxRates) {
                         try {
-                            const fxData = await getExchangeRates('MXN');
-                            injectedContext += `\n[SISTEMA - DATOS DE MÓDULO FX-RATES (TIPO DE CAMBIO HOY)]:\n${fxData}\nSi es relevante o útil, menciona el tipo de cambio actual de forma muy breve y natural.`;
-                        } catch (e) {
-                            console.error("Error fetching fx rates for proactive message", e);
-                        }
-                    }
+                            const banxicoRes = await axios.get('https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/oportuno', {
+                                headers: { 'Bmx-Token': process.env.BANXICO_TOKEN || 'a979203309a96e94474324f92376e19198305c48b2913e642398516d7a468d60' }
+                            });
+                            if (banxicoRes.data && banxicoRes.data.bmx && banxicoRes.data.bmx.series) {
+                                const currentRate = parseFloat(banxicoRes.data.bmx.series[0].datos[0].dato);
+                                
+                                const { data: lastFxMem } = await db.supabase
+                                    .from('memories')
+                                    .select('value')
+                                    .eq('user_id', user.id)
+                                    .eq('category', 'finance')
+                                    .eq('key', 'last_fx_usd_mxn')
+                                    .limit(1);
+                                
+                                const lastRate = lastFxMem && lastFxMem.length > 0 ? parseFloat(lastFxMem[0].value) : null;
+                                let diffText = "";
+                                if (lastRate) {
+                                    const diff = (currentRate - lastRate).toFixed(4);
+                                    const arrow = currentRate > lastRate ? "↑" : "↓";
+                                    diffText = ` (${arrow} ${Math.abs(diff)} respecto a ayer)`;
+                                }
 
-                    // CHECK IF SPORTS MODULE IS ENABLED
-                    const hasSports = await checkModuleAccess(user, 'sports');
-                    if (hasSports) {
-                        try {
-                            // Import it dynamically or ensure it's at the top
-                            const { fetchSportsData } = require('../handlers/sports.handler');
-                            // We can fetch a top league by default, e.g., 'ligamx' or a summary
-                            const sportsData = await fetchSportsData('ligamx');
-                            injectedContext += `\n[SISTEMA - DATOS DE MÓDULO SPORTS (PARTIDOS HOY)]:\n${sportsData}\nDado que al usuario le interesan los deportes, menciona si hay algún partido interesante hoy de forma muy breve.`;
-                        } catch (e) {
-                            console.error("Error fetching sports for proactive message", e);
-                        }
-                    }
+                                injectedContext += `\n[SISTEMA - DATOS DE MÓDULO FX-RATES]:\nUSD/MXN: $${currentRate}${diffText}\n`;
 
-                    // CHECK IF LUNA MODULE IS ENABLED
-                    const hasLuna = await checkModuleAccess(user, 'luna');
-                    if (hasLuna) {
-                        try {
-                            const { processLunaContext } = require('../handlers/luna.handler');
-                            const lunaData = await processLunaContext(user.id);
-                            if (lunaData && !lunaData.includes('no ha registrado')) {
-                                injectedContext += `\n[SISTEMA - DATOS DE MÓDULO LUNA (CICLO ACTUAL)]:\n${lunaData}\nAdapta ligeramente tu tono de buenos días según su fase del ciclo (ej. más empatía y calma si está en menstruación/lútea, más energía si está en folicular/ovulación). No seas invasivo, sólo tómalo en cuenta.`;
+                                // Update memory for tomorrow
+                                if (lastFxMem && lastFxMem.length > 0) {
+                                    await db.supabase.from('memories').update({ value: currentRate.toString() }).eq('id', lastFxMem[0].id);
+                                } else {
+                                    await db.supabase.from('memories').insert([{ user_id: user.id, category: 'finance', key: 'last_fx_usd_mxn', value: currentRate.toString() }]);
+                                }
                             }
                         } catch (e) {
-                            console.error("Error fetching luna data for proactive message", e);
+                            console.error("Error fetching Banxico FX", e.message);
                         }
                     }
 
-                    // CHECK IF FAMILIA MODULE IS ENABLED
+                    // SECTION 3: FAMILIA (Direct SQL via Supabase)
                     const hasFamilia = await checkModuleAccess(user, 'familia');
                     if (hasFamilia) {
                         try {
-                            const { getFamilyContext } = require('../handlers/familia.handler');
                             const nowTz = new Date().toLocaleString("en-US", { timeZone: userTz });
                             const today = new Date(nowTz);
-                            const familyData = await getFamilyContext(user.id, today);
-                            if (familyData && !familyData.includes('No tienes familiares registrados')) {
-                                injectedContext += `\n[SISTEMA - DATOS DE MÓDULO FAMILIA (HOY)]:\n${familyData}\nMenciona sutilmente alguna actividad familiar de hoy (si la hay) o da un breve mensaje recordatorio. (Ejemplo: "Hoy tienes el partido de Sofia a las 17:00")`;
+                            const dayNum = today.getDay(); // 0=domingo
+                            const month = today.getMonth() + 1;
+                            const day = today.getDate();
+
+                            // Activities
+                            const { data: activities } = await db.supabase
+                                .from('family_activities')
+                                .select(`
+                                    name, start_time,
+                                    family_members!inner(name, user_id)
+                                `)
+                                .eq('family_members.user_id', user.id)
+                                .contains('day_of_week', [dayNum]);
+
+                            // Birthdays
+                            const { data: birthdays } = await db.supabase
+                                .from('family_members')
+                                .select('name')
+                                .eq('user_id', user.id)
+                                .filter('birthdate', 'isnot', null);
+
+                            const todaysBirthdays = (birthdays || []).filter(m => {
+                                const b = new Date(m.birthdate);
+                                return (b.getUTCMonth() + 1) === month && b.getUTCDate() === day;
+                            });
+
+                            if ((activities && activities.length > 0) || todaysBirthdays.length > 0) {
+                                let famText = "[SISTEMA - DATOS DE MÓDULO FAMILIA]:\n";
+                                if (todaysBirthdays.length > 0) {
+                                    famText += `¡Cumpleaños de hoy!: ${todaysBirthdays.map(b => b.name).join(', ')} 🎂\n`;
+                                }
+                                if (activities && activities.length > 0) {
+                                    famText += "Actividades hoy:\n" + activities.map(a => `- ${a.family_members.name}: ${a.name} a las ${a.start_time}`).join('\n');
+                                }
+                                injectedContext += `\n${famText}\n`;
                             }
                         } catch (e) {
-                            console.error("Error fetching familia data for proactive message", e);
+                            console.error("Error fetching familia context for cron", e.message);
+                        }
+                    }
+
+                    // SECTION 4: SPORTS (ESPN API)
+                    const hasSports = await checkModuleAccess(user, 'sports');
+                    if (hasSports) {
+                        try {
+                            const { data: teams } = await db.supabase
+                                .from('user_sports_teams')
+                                .select('*')
+                                .eq('user_id', user.id);
+
+                            if (teams && teams.length > 0) {
+                                const leagueMap = {
+                                    'sports-nfl': 'football/nfl',
+                                    'sports-nba': 'basketball/nba',
+                                    'sports-mlb': 'baseball/mlb',
+                                    'sports-nhl': 'hockey/nhl',
+                                    'sports-mls': 'soccer/usa.1',
+                                    'sports-bbva': 'soccer/mex.1',
+                                    'sports-epl': 'soccer/eng.1',
+                                    'sports-laliga': 'soccer/esp.1'
+                                };
+
+                                let sportsMatches = [];
+                                for (const team of teams) {
+                                    const path = leagueMap[team.league_slug];
+                                    if (!path) continue;
+
+                                    const espnRes = await axios.get(`https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`);
+                                    if (espnRes.data && espnRes.data.events) {
+                                        const teamMatch = espnRes.data.events.find(e => 
+                                            e.competitions[0].competitors.some(c => c.team.displayName.toLowerCase().includes(team.team_name.toLowerCase()) || (team.team_id && c.team.id === team.team_id))
+                                        );
+
+                                        if (teamMatch) {
+                                            const eventDate = new Date(teamMatch.date);
+                                            // Check if it's today in user's timezone
+                                            const eventDay = eventDate.toLocaleDateString("en-US", { timeZone: userTz });
+                                            const todayDay = new Date().toLocaleDateString("en-US", { timeZone: userTz });
+                                            
+                                            if (eventDay === todayDay) {
+                                                const home = teamMatch.competitions[0].competitors.find(c => c.homeAway === 'home').team.displayName;
+                                                const away = teamMatch.competitions[0].competitors.find(c => c.homeAway === 'away').team.displayName;
+                                                const time = eventDate.toLocaleTimeString("es-MX", { timeZone: userTz, hour: '2-digit', minute: '2-digit' });
+                                                sportsMatches.push(`${home} vs ${away} a las ${time}`);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (sportsMatches.length > 0) {
+                                    injectedContext += `\n[SISTEMA - DATOS DE MÓDULO SPORTS]:\nPartidos de tus equipos hoy:\n${sportsMatches.map(m => `- ${m}`).join('\n')}\n`;
+                                }
+                            }
+                        } catch (e) {
+                            console.error("Error fetching sports context for cron", e.message);
+                        }
+                    }
+
+                    // SECTION 5: GMAIL
+                    const hasGmail = await checkModuleAccess(user, 'gmail');
+                    if (hasGmail) {
+                        try {
+                            const { getGoogleToken } = require('../modules/executive/google.connector');
+                            const tokenData = await getGoogleToken(user.id);
+                            if (tokenData) {
+                                const listRes = await axios.get('https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread&maxResults=1', {
+                                    headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
+                                });
+                                const unreadCount = listRes.data.resultSizeEstimate || (listRes.data.messages ? listRes.data.messages.length : 0);
+                                if (unreadCount > 0) {
+                                    injectedContext += `\n[SISTEMA - DATOS DE MÓDULO GMAIL]:\nTienes aproximadamente ${unreadCount} correos sin leer en tu bandeja de entrada.\n`;
+                                }
+                            }
+                        } catch (e) {
+                            console.error("Error fetching Gmail context for cron", e.message);
+                        }
+                    }
+
+                    // SECTION 6: CALENDAR
+                    const hasCalendar = await checkModuleAccess(user, 'calendar');
+                    if (hasCalendar) {
+                        try {
+                            const { getGoogleToken } = require('../modules/executive/google.connector');
+                            const tokenData = await getGoogleToken(user.id);
+                            if (tokenData) {
+                                const startStr = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+                                const endStr = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+                                const queryUrl = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(startStr)}&timeMax=${encodeURIComponent(endStr)}&singleEvents=true&orderBy=startTime`;
+                                
+                                const eventsRes = await axios.get(queryUrl, {
+                                    headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
+                                });
+                                const events = eventsRes.data.items || [];
+                                if (events.length > 0) {
+                                    injectedContext += `\n[SISTEMA - DATOS DE MÓDULO CALENDAR]:\nEventos programados para hoy:\n`;
+                                    events.forEach(evt => {
+                                        const start = evt.start.dateTime ? new Date(evt.start.dateTime) : new Date(evt.start.date);
+                                        const timeFormatter = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', timeZone: userTz });
+                                        const timeStr = evt.start.dateTime ? timeFormatter.format(start) : 'Todo el día';
+                                        injectedContext += `- ${timeStr}: ${evt.summary || 'Sin título'}\n`;
+                                    });
+                                }
+                            }
+                        } catch (e) {
+                            console.error("Error fetching Calendar context for cron", e.message);
                         }
                     }
                 } else if (localHour === 14) {
@@ -233,94 +392,28 @@ function startCron(bot) {
         }
     });
 
-    // 5-minute cron for Live Sports
+    // 5-minute cron for Live Sports (Delegated to specialized job)
     cron.schedule('*/5 * * * *', async () => {
         try {
-            const { fetchLiveMatches } = require('../handlers/sports.handler');
-            const leaguesToCheck = ['ligamx', 'championsleague', 'nfl', 'nba'];
-
-            let allLiveMatches = [];
-            for (const league of leaguesToCheck) {
-                const matches = await fetchLiveMatches(league);
-                allLiveMatches = allLiveMatches.concat(matches);
-            }
-
-            if (allLiveMatches.length === 0) return;
-
-            const users = await db.getAllUsers();
-            for (const user of users) {
-                const hasSports = await checkModuleAccess(user, 'sports');
-                if (!hasSports) continue;
-
-                // Build a summary of things that changed
-                let updatesForUser = [];
-                for (const match of allLiveMatches) {
-                    const matchKey = `live_sports_${match.id}`;
-                    const currentScoreStr = `${match.homeScore}-${match.awayScore}`;
-
-                    const { data: mem } = await db.supabase
-                        .from('memories')
-                        .select('id, value')
-                        .eq('user_id', user.id)
-                        .eq('category', 'sports_live')
-                        .eq('key', matchKey)
-                        .limit(1);
-
-                    const lastScore = mem && mem.length > 0 ? mem[0].value : null;
-
-                    if (lastScore !== currentScoreStr) {
-                        updatesForUser.push(`${match.homeTeam} ${match.homeScore} - ${match.awayScore} ${match.awayTeam} (${match.description})`);
-
-                        if (mem && mem.length > 0) {
-                            await db.supabase.from('memories').update({ value: currentScoreStr, updated_at: new Date().toISOString() }).eq('id', mem[0].id);
-                        } else {
-                            await db.supabase.from('memories').insert([{
-                                user_id: user.id,
-                                category: 'sports_live',
-                                key: matchKey,
-                                value: currentScoreStr,
-                                context: 'auto'
-                            }]);
-                        }
-                    }
-                }
-
-                if (updatesForUser.length > 0) {
-                    // Send an update to the user
-                    console.log(`Enviando actualización deportiva en vivo a ${user.name}`);
-                    const userText = `[SISTEMA INTERNO]: Hay actualizaciones en partidos deportivos en vivo:\n${updatesForUser.join('\\n')}\nRedacta un mensaje MUY BREVE y emocionante informando al usuario sobre estos cambios en el marcador.`;
-
-                    const aiResponse = await claude.generateResponse(
-                        user,
-                        userText,
-                        [], [], [], [], [], []
-                    );
-
-                    const { parseActions } = require('../utils/actionParser');
-                    const { strippedText } = parseActions(aiResponse.text);
-
-                    const channel = user.whatsapp_id ? 'whatsapp' : 'telegram';
-                    const targetId = channel === 'whatsapp' ? user.whatsapp_id : user.telegram_id;
-
-                    if (targetId) {
-                        try {
-                            await sendChannelMessage(bot, targetId, strippedText, { parse_mode: 'Markdown' }, channel);
-                        } catch (sendErr) {
-                            await sendChannelMessage(bot, targetId, strippedText, {}, channel);
-                        }
-
-                        await db.saveMessage({
-                            user_id: user.id,
-                            channel: channel,
-                            role: 'assistant',
-                            content: strippedText,
-                            content_type: 'text'
-                        });
-                    }
-                }
-            }
+            const { runSportsAlertsJob } = require('../jobs/sports-alerts.job');
+            await runSportsAlertsJob(bot);
         } catch (error) {
             console.error('Error en el cron de deportes en vivo:', error);
+        }
+    });
+
+    // Nightly cleanup of expired conversation memories
+    cron.schedule('0 3 * * *', async () => {
+        try {
+            console.log('[Cron] Running nightly memory cleanup...');
+            const { error } = await db.supabase.rpc('expire_old_memories');
+            if (error) {
+                console.error('[Cron] Error running memory cleanup:', error);
+            } else {
+                console.log('[Cron] Memory cleanup completed successfully.');
+            }
+        } catch (error) {
+            console.error('[Cron] Error scheduling memory cleanup:', error);
         }
     });
 

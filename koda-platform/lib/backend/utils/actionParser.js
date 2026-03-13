@@ -44,10 +44,15 @@ function parseActions(text) {
                 let content = parts.join(':').trim();
 
                 // Validate if it's a valid date, otherwise default to tomorrow
-                if (isNaN(new Date(remind_at).getTime())) {
+                // Validate if it's a valid date, otherwise default to tomorrow
+                let parsedDate = new Date(remind_at);
+                if (isNaN(parsedDate.getTime())) {
                     const fallbackDate = new Date();
                     fallbackDate.setDate(fallbackDate.getDate() + 1);
                     remind_at = fallbackDate.toISOString();
+                } else if (remind_at.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    // Si es solo fecha, forzar a medianoche local para evitar shift UTC
+                    remind_at = new Date(remind_at + 'T00:00:00').toISOString();
                 }
 
                 actions.push({ type, payload: { content, remind_at } });

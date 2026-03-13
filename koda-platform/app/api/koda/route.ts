@@ -3,9 +3,9 @@ import { NextResponse } from "next/server";
 import TelegramBot from 'node-telegram-bot-api';
 import { getSessionUser } from '@/lib/backend/session';
 
-/* eslint-disable @typescript-eslint/no-require-imports */
 const db = require('@/lib/backend/services/supabase');
 import { routeMessage } from '@/lib/backend/module.router';
+import { indexConversation } from '@/lib/modules/memory/memory.indexer';
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 export async function POST(request: Request) {
@@ -42,6 +42,12 @@ export async function POST(request: Request) {
         const reply = await routeMessage(bot, msg, user, options);
 
         if (typeof reply === 'string') {
+            // Asynchronous indexing (fire and forget)
+            const textContent = msg.text || '';
+            indexConversation(user.id, textContent, reply, options).catch(e => {
+                 console.error('[Memory] Error background indexing:', e);
+            });
+
             return NextResponse.json({
                 channel: 'telegram',
                 chatId: msg.chat.id,

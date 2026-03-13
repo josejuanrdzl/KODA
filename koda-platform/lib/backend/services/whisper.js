@@ -4,8 +4,23 @@ const ffmpeg = require('fluent-ffmpeg');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 const { OpenAI } = require('openai');
 
-// Configuración de FFmpeg para usar los binarios instalados
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+const { execSync } = require('child_process');
+
+// Intentar encontrar FFmpeg en el sistema (por ejemplo, si se instaló vía apk en Docker)
+let ffmpegPath = ffmpegInstaller.path;
+try {
+    // Verificar si ffmpeg está en el PATH del sistema
+    const systemFfmpeg = execSync('which ffmpeg', { encoding: 'utf8' }).trim();
+    if (systemFfmpeg) {
+        console.log(`✅ Usando FFmpeg del sistema: ${systemFfmpeg}`);
+        ffmpegPath = systemFfmpeg;
+    }
+} catch (e) {
+    console.log(`ℹ️ FFmpeg no encontrado en PATH del sistema, usando el instalador de node_modules.`);
+}
+
+// Configuración de FFmpeg
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 let openai = null;
 try {
@@ -14,10 +29,10 @@ try {
             apiKey: process.env.OPENAI_API_KEY,
         });
     } else {
-        console.warn("⚠️ OPENAI_API_KEY no detectada en las variables de entorno. La transcripción de audio (Whisper) fallará si se intenta usar.");
+        console.warn("⚠️ OPENAI_API_KEY no detectada. La transcripción de audio (Whisper) fallará.");
     }
 } catch (error) {
-    console.warn("Error al inicializar OpenAI (Whisper estará deshabilitado):", error.message);
+    console.warn("❌ Error al inicializar OpenAI:", error.message);
 }
 
 /**
@@ -68,7 +83,7 @@ async function transcribeAudio(bot, fileId) {
         const transcription = await openai.audio.transcriptions.create({
             file: fs.createReadStream(outputPath),
             model: 'whisper-1',
-            language: 'es', // Podemos forzar español o dejar autodetección, pero lo quitamos según instrucciones para que sea automático
+            // Dejamos que OpenAI detecte el idioma automáticamente para mayor flexibilidad
         });
 
         const text = transcription.text;

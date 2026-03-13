@@ -2,7 +2,7 @@ const db = require('../services/supabase');
 const claude = require('../services/claude');
 const { parseActions } = require('../utils/actionParser');
 const { classifyIntent } = require('../intent');
-const { checkModuleAccess } = require('../module.router');
+const { checkModuleAccess, performContextInjection } = require('../module.router');
 const whisper = require('../services/whisper'); // Nuevo servicio Whisper
 const { sendChannelMessage } = require('../utils/messenger'); // Integración WhatsApp
 
@@ -48,6 +48,14 @@ async function handleMainFlow(bot, msg, user, options = {}) {
         }
 
         userText = transcript;
+        console.log(`[AUDIO TRANSCRIPT]: "${userText}"`);
+        
+        // Re-calculate context injection based on the transcribed text
+        msg.text = userText; // Update msg.text so performContextInjection can see it
+        const extraContext = await performContextInjection(msg, user);
+        if (extraContext) {
+            userText = msg.text; // Use the updated text with injected data
+        }
 
         // Agregar nota interna si el audio dura más de 5 minutos (300 segundos)
         if (duration > 300) {
@@ -299,7 +307,25 @@ async function handleMainFlow(bot, msg, user, options = {}) {
                             const params = action.payload.content ? action.payload.content.split('|') : (action.payload || '').split('|');
                             if (params.length >= 2) {
                                 const [name, relation, birthdateStr, school, school_start, school_end] = params.map(p => p.trim() === 'null' || !p.trim() ? null : p.trim());
-                                const birthdate = birthdateStr ? new Date(birthdateStr).toISOString().split('T')[0] : null;
+                                
+                                let birthdate = null;
+                                if (birthdateStr) {
+                                    // Evitar shift de zona horaria: Parsear y extraer componentes locales
+                                    const d = new Date(birthdateStr);
+                                    if (!isNaN(d.getTime())) {
+                                        // Si birthdateStr es solo YYYY-MM-DD, a veces el constructor de Date
+                                        // lo asume como UTC. Para ser robustos, extraemos los componentes
+                                        // pero si viene de Claude suele ser YYYY-MM-DD.
+                                        if (birthdateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                                            birthdate = birthdateStr;
+                                        } else {
+                                            const year = d.getFullYear();
+                                            const month = String(d.getMonth() + 1).padStart(2, '0');
+                                            const day = String(d.getDate()).padStart(2, '0');
+                                            birthdate = `${year}-${month}-${day}`;
+                                        }
+                                    }
+                                }
                                 
                                 await db.saveFamilyMemberSafe(user.id, {
                                     name, relation, birthdate, school, school_start, school_end

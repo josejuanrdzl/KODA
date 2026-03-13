@@ -17,5 +17,8 @@ This document outlines the core operational rules for the KODA project. All cont
 - **Post-Change Validation**: After deployment, you must validate that the **Fly.io** environment remains fully operational.
 - **Reporting**: Always state the operational status of the Fly.io environment in the final summary of work.
 
+## 4. Knowledge Management
+- **Lessons Learned**: Before implementing any new prompt, module, or core logic, you **must** read and adhere to the guidelines in [LESSONS_LEARNED.md](file:///Users/joserodriguez/KODA/koda-platform/LESSONS_LEARNED.md). This document contains critical fixes for API keys, date handling, and system-level bugs identified during development.
+
 ---
 *Directives will be added as the project evolves.*
