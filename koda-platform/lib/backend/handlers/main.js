@@ -72,6 +72,10 @@ async function handleMainFlow(bot, msg, user, options = {}) {
     const hasSpotify = await checkModuleAccess(user, 'spotify');
     const hasSports = await checkModuleAccess(user, 'sports');
     const hasLuna = await checkModuleAccess(user, 'luna');
+    const hasGmail = await checkModuleAccess(user, 'gmail');
+    const hasCalendar = await checkModuleAccess(user, 'calendar');
+    const hasMessaging = await checkModuleAccess(user, 'messaging');
+    const hasMemory = await checkModuleAccess(user, 'memory');
 
     const disabledModules = [];
     if (!hasJournal) disabledModules.push('journal');
@@ -82,6 +86,10 @@ async function handleMainFlow(bot, msg, user, options = {}) {
     if (!hasSpotify) disabledModules.push('spotify');
     if (!hasSports) disabledModules.push('sports');
     if (!hasLuna) disabledModules.push('luna');
+    if (!hasGmail) disabledModules.push('gmail');
+    if (!hasCalendar) disabledModules.push('calendar');
+    if (!hasMessaging) disabledModules.push('messaging');
+    if (!hasMemory) disabledModules.push('memory');
 
     // Detectar reenvíos (forwards de Telegram)
     const isForwarded = Boolean(msg.forward_date || msg.forward_from || msg.forward_origin || msg.forward_sender_name);

@@ -60,7 +60,7 @@ export async function handleGmailModule(bot: any, msg: any, user: any, options: 
 urgent = requiere acción hoy, important = requiere acción pronto, normal = informativo, skip = newsletters/marketing/notificaciones`;
 
             const aiResponse = await anthropic.messages.create({
-                model: 'claude-3-haiku-20240307',
+                model: 'claude-3-5-sonnet-20240620',
                 max_tokens: 1000,
                 system: systemPrompt,
                 messages: [
@@ -184,7 +184,7 @@ urgent = requiere acción hoy, important = requiere acción pronto, normal = inf
              if (finalContent.length > 2000) {
                  await bot.sendMessage(user.id, "El email es un poco largo, lo estoy resumiendo...", options);
                  const summaryRes = await anthropic.messages.create({
-                     model: 'claude-3-haiku-20240307',
+                     model: 'claude-3-5-sonnet-20240620',
                      max_tokens: 500,
                      system: "Resume este email en máximo 200 palabras, conservando datos importantes: montos, fechas, nombres, action items",
                      messages: [ { role: 'user', content: finalContent } ]
@@ -356,7 +356,7 @@ Máximo 150 palabras. Solo el cuerpo del correo, sin asunto, sin firma (solo tu 
         await bot.sendMessage(user.id, "Actualizando borrador...", options);
         try {
              const redraftRes = await anthropic.messages.create({
-                 model: 'claude-3-haiku-20240307',
+                 model: 'claude-3-5-sonnet-20240620',
                  max_tokens: 300,
                  system: "Modifica este borrador de email basado en las instrucciones del usuario. Solo devuelve el cuerpo del correo.",
                  messages: [
@@ -389,7 +389,7 @@ Máximo 150 palabras. Solo el cuerpo del correo, sin asunto, sin firma (solo tu 
          
          try {
              const queryRes = await anthropic.messages.create({
-                 model: 'claude-3-haiku-20240307',
+                 model: 'claude-3-5-sonnet-20240620',
                  max_tokens: 50,
                  system: systemPrompt,
                  messages: [ { role: 'user', content: "Genera la query." } ]

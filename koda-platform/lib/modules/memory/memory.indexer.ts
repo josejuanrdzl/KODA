@@ -43,7 +43,7 @@ NO indexar si el intercambio es solo:
 - Respuestas de una sola palabra`;
 
         const response = await anthropic.messages.create({
-            model: 'claude-3-haiku-20240307',
+            model: 'claude-3-5-sonnet-20240620',
             max_tokens: 500,
             system: systemPrompt,
             messages: [
@@ -126,7 +126,7 @@ Devuelve SOLO JSON con esta estructura exacta o null:
 NO indexar saludos simples ni mensajes de una palabra.`;
          
          const response = await anthropic.messages.create({
-            model: 'claude-3-haiku-20240307',
+            model: 'claude-3-5-sonnet-20240620',
             max_tokens: 300,
             system: systemPrompt,
             messages: [

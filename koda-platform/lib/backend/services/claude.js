@@ -11,6 +11,11 @@ const { buildSystemPrompt } = require('../prompt.builder');
 
 async function generateResponse(user, userMessage, chatHistory, memories, notes, reminders, recentJournals, emotionalTimeline, activeHabits = [], disabledModules = [], model = 'claude-sonnet-4-6', familyContext = null) {
   const systemPrompt = buildSystemPrompt(user, memories, notes, reminders, recentJournals, emotionalTimeline, activeHabits, disabledModules, familyContext);
+  
+  console.log('[DEBUG] disabledModules:', disabledModules);
+  console.log('[DEBUG] systemPrompt starting with (first 200 chars):', systemPrompt.substring(0, 200));
+  console.log('[DEBUG] Does prompt have Gmail?', systemPrompt.includes('GMAIL'));
+  console.log('[DEBUG] Does prompt have Calendar?', systemPrompt.includes('CALENDAR'));
 
   // Convert DB history to Anthropic format
   const messages = chatHistory.map(msg => ({
