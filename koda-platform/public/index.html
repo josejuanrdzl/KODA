@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KODA - Planes y Precios</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --surface-color: #161b22;
+            --primary-accent: #58a6ff;
+            --primary-hover: #3182ce;
+            --text-primary: #f0f6fc;
+            --text-secondary: #8b949e;
+            --border-color: #30363d;
+            --success-color: #2ea043;
+            --danger-color: #da3633;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            text-align: center;
+            padding: 4rem 1rem;
+            max-width: 800px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #58a6ff 0%, #a371f7 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+        }
+
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+            padding: 2rem;
+            max-width: 1400px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .pricing-card {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: left;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            border-color: var(--primary-accent);
+        }
+
+        .pricing-card.popular {
+            border-color: var(--primary-accent);
+            position: relative;
+        }
+
+        .popular-badge {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary-accent);
+            color: #fff;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .plan-name {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .plan-price {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .plan-price span {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .plan-features {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 2rem 0;
+            flex-grow: 1;
+        }
+
+        .plan-features li {
+            position: relative;
+            padding-left: 1.5rem;
+            margin-bottom: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .plan-features li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: var(--success-color);
+            font-weight: bold;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 1rem;
+            text-align: center;
+            background-color: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-accent);
+            border-color: var(--primary-accent);
+            color: #000;
+        }
+
+        .btn:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
+
+        /* Modal / Checkout styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .checkout-modal {
+            background: var(--surface-color);
+            padding: 2.5rem;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 450px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+            position: relative;
+        }
+
+        .modal-overlay.active .checkout-modal {
+            transform: translateY(0);
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .checkout-modal h2 {
+            margin-top: 0;
+            margin-bottom: 2rem;
+            font-size: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .form-group input,
+        .stripe-element-container {
+            width: 100%;
+            padding: 0.8rem;
+            background: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary-accent);
+        }
+
+        .error-message {
+            color: var(--danger-color);
+            font-size: 0.9rem;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        #submit-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .currency-toggle {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2rem;
+            background: var(--surface-color);
+            border-radius: 30px;
+            padding: 4px;
+            border: 1px solid var(--border-color);
+            max-width: 200px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .currency-toggle button {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            padding: 8px 16px;
+            border-radius: 26px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .currency-toggle button.active {
+            background: var(--primary-accent);
+            color: #000;
+        }
+
+        @media (max-width: 768px) {
+            .pricing-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>Experimenta el Poder de KODA</h1>
+        <p class="subtitle">Elige el plan que mejor se adapte a tu vida o negocio. Todos los planes de pago incluyen una
+            prueba gratuita de 3 días.</p>
+    </header>
+
+    <div class="currency-toggle">
+        <button id="btn-usd" class="active" onclick="setCurrency('usd')">USD</button>
+        <button id="btn-mxn" onclick="setCurrency('mxn')">MXN</button>
+    </div>
+
+    <div class="pricing-grid">
+        <!-- Starter Plan (Free) -->
+        <div class="pricing-card">
+            <div class="plan-name">Starter</div>
+            <div class="plan-price">$0 <span>/ mes</span></div>
+            <ul class="plan-features">
+                <li>15 mensajes al día</li>
+                <li>3 días de memoria</li>
+                <li>Máx 5 notas guardadas</li>
+                <li>Máx 3 recordatorios activos</li>
+                <li>Registro de diario básico</li>
+            </ul>
+            <a href="https://t.me/TuBotDeKODA" target="_blank" class="btn">Probar Gratis en Telegram</a>
+        </div>
+
+        <!-- Basic Plan -->
+        <div class="pricing-card popular">
+            <div class="popular-badge">Más Popular</div>
+            <div class="plan-name">Basic</div>
+            <div class="plan-price" data-usd="4.99" data-mxn="99">$4.99 <span>/ mes</span></div>
+            <ul class="plan-features">
+                <li>100 mensajes al día</li>
+                <li>Memoria 6 meses</li>
+                <li>Máx 500 notas</li>
+                <li>Máx 20 recordatorios activos</li>
+                <li>Sin mensajes proactivos</li>
+                <li>Con diario y análisis de mensajes</li>
+            </ul>
+            <button class="btn btn-primary" onclick="openCheckout('basic')">Empezar Trial de 3 Días</button>
+        </div>
+
+        <!-- Executive Plan -->
+        <div class="pricing-card">
+            <div class="plan-name">Executive</div>
+            <div class="plan-price" data-usd="12.99" data-mxn="249">$12.99 <span>/ mes</span></div>
+            <ul class="plan-features">
+                <li>Mensajes Ilimitados</li>
+                <li>Mensajes de voz (próximamente)</li>
+                <li>4 mensajes proactivos al día</li>
+                <li>Diario avanzado (30 días históricos)</li>
+                <li>Interacción con Ryse Docs (próximamente)</li>
+            </ul>
+            <button class="btn btn-primary" onclick="openCheckout('executive')">Empezar Trial de 3 Días</button>
+        </div>
+
+        <!-- Corporate Plan -->
+        <div class="pricing-card">
+            <div class="plan-name">Corporate</div>
+            <div class="plan-price" data-usd="24.99" data-mxn="499">$24.99 <span>/ mes</span></div>
+            <ul class="plan-features">
+                <li>Mensajes Ilimitados</li>
+                <li>Memoria Permanente</li>
+                <li>Notas y recordatorios ilimitados</li>
+                <li>Diario + Mood Tracking</li>
+                <li>Mensajes Proactivos y Análisis de mensajes</li>
+                <li>5 Espacios Compartidos (Hasta 5 Usuarios)</li>
+                <li>Integración Ryse (próximamente)</li>
+                <li>Soporte Dedicado</li>
+            </ul>
+            <button class="btn btn-primary" onclick="openCheckout('corporate')">Empezar Trial de 3 Días</button>
+        </div>
+    </div>
+
+    <!-- Checkout Modal -->
+    <div class="modal-overlay" id="checkout-modal">
+        <div class="checkout-modal">
+            <button class="close-btn" onclick="closeCheckout()">×</button>
+            <h2 id="checkout-title">Registro</h2>
+            <form id="payment-form">
+                <div class="form-group">
+                    <label for="name">Nombre Completo</label>
+                    <input type="text" id="name" required placeholder="Juan Pérez">
+                </div>
+                <div class="form-group">
+                    <label for="email">Correo Electrónico</label>
+                    <input type="email" id="email" required placeholder="juan@ejemplo.com">
+                </div>
+                <div class="form-group">
+                    <label for="telegram_username">Usuario de Telegram (ej. @juanperez)</label>
+                    <input type="text" id="telegram_username" required placeholder="@tuusuario">
+                </div>
+                <div class="form-group">
+                    <label>Datos de Tarjeta</label>
+                    <div id="card-element" class="stripe-element-container"></div>
+                </div>
+                <div id="card-errors" class="error-message"></div>
+                <div id="form-error" class="error-message"></div>
+
+                <button type="submit" class="btn btn-primary" id="submit-btn" style="margin-top: 1rem;">
+                    Suscribirse e Iniciar Trial
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Llave publicable en vivo de Stripe (Para KODA Producción)
+        const stripe = Stripe('pk_live_51Sv8W8Ci6G4WHQj85zEbbTf51ZNw5x1dft9iplZqsawao2eazYg3qHr6I6si06bHr8z4Woor7urKglHdgAplijIH00kJd64KlZ');
+        const elements = stripe.elements({
+            fonts: [{ cssSrc: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap' }]
+        });
+
+        const style = {
+            base: {
+                color: '#f0f6fc',
+                fontFamily: '"Inter", sans-serif',
+                fontSmoothing: 'antialiased',
+                fontSize: '16px',
+                '::placeholder': { color: '#8b949e' }
+            },
+            invalid: { color: '#da3633', iconColor: '#da3633' }
+        };
+
+        const card = elements.create('card', { style: style });
+        card.mount('#card-element');
+
+        card.on('change', function (event) {
+            const displayError = document.getElementById('card-errors');
+            if (event.error) {
+                displayError.textContent = event.error.message;
+                displayError.style.display = 'block';
+            } else {
+                displayError.textContent = '';
+                displayError.style.display = 'none';
+            }
+        });
+
+        let selectedPlan = '';
+        let currentCurrency = 'usd';
+
+        function setCurrency(currency) {
+            currentCurrency = currency;
+            document.getElementById('btn-usd').classList.toggle('active', currency === 'usd');
+            document.getElementById('btn-mxn').classList.toggle('active', currency === 'mxn');
+
+            const p = currency === 'usd' ? '$' : '$';
+            document.querySelectorAll('.plan-price').forEach(el => {
+                const val = el.getAttribute(`data-${currency}`);
+                if (val) el.innerHTML = `${p}${val} <span>/ mes</span>`;
+            });
+        }
+
+        function openCheckout(plan) {
+            selectedPlan = plan;
+            const titles = {
+                'basic': 'KODA Basic - 3 Días Gratis',
+                'executive': 'KODA Executive - 3 Días Gratis',
+                'corporate': 'KODA Corporate - 3 Días Gratis'
+            };
+            document.getElementById('checkout-title').innerText = titles[plan];
+            document.getElementById('checkout-modal').classList.add('active');
+            document.getElementById('form-error').style.display = 'none';
+        }
+
+        function closeCheckout() {
+            document.getElementById('checkout-modal').classList.remove('active');
+        }
+
+        const form = document.getElementById('payment-form');
+        const submitBtn = document.getElementById('submit-btn');
+
+        form.addEventListener('submit', async function (event) {
+            event.preventDefault();
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Procesando...';
+            document.getElementById('form-error').style.display = 'none';
+
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const telegram_username = document.getElementById('telegram_username').value;
+
+            // 1. Create Payment Method in Stripe
+            const { paymentMethod, error } = await stripe.createPaymentMethod({
+                type: 'card',
+                card: card,
+                billing_details: { name: name, email: email }
+            });
+
+            if (error) {
+                document.getElementById('card-errors').textContent = error.message;
+                document.getElementById('card-errors').style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Suscribirse e Iniciar Trial';
+                return;
+            }
+
+            // 2. Call backend to attach payment method and create subscription
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        email,
+                        telegram_username,
+                        plan: selectedPlan,
+                        currency: currentCurrency,
+                        payment_method_id: paymentMethod.id
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    window.location.href = '/success.html';
+                } else {
+                    throw new Error(data.error || 'Ocurrió un error en el registro.');
+                }
+            } catch (err) {
+                const formError = document.getElementById('form-error');
+                formError.textContent = err.message;
+                formError.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Suscribirse e Iniciar Trial';
+            }
+        });
+    </script>
+</body>
+
+</html>

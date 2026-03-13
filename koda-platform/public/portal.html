@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KODA - Portal de Cliente</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --surface-color: #161b22;
+            --primary-accent: #58a6ff;
+            --text-primary: #f0f6fc;
+            --text-secondary: #8b949e;
+            --danger-color: #da3633;
+            --border-color: #30363d;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-card {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2.5rem;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 1rem;
+            background: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            box-sizing: border-box;
+            font-family: inherit;
+            margin-bottom: 1rem;
+            font-size: 1rem;
+            text-align: center;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary-accent);
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            background-color: var(--primary-accent);
+            color: #000;
+            padding: 1rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .btn:hover {
+            background-color: #3182ce;
+        }
+
+        .btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .error {
+            color: var(--danger-color);
+            font-size: 0.9rem;
+            margin-top: 1rem;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-card">
+        <h1>Portal de Cliente KODA</h1>
+        <p>Administra tu suscripción, métodos de pago y facturas.</p>
+
+        <form id="portal-form">
+            <input type="text" id="telegram_username" placeholder="@tuusuario" required>
+            <button type="submit" class="btn" id="submit-btn">Ingresar al Portal</button>
+            <div id="error-msg" class="error"></div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('portal-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const btn = document.getElementById('submit-btn');
+            const errorMsg = document.getElementById('error-msg');
+            const username = document.getElementById('telegram_username').value;
+
+            btn.disabled = true;
+            btn.innerText = 'Cargando...';
+            errorMsg.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/portal', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ telegram_username: username })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.url) {
+                    window.location.href = data.url;
+                } else {
+                    throw new Error(data.error || 'Ocurrió un error inesperado');
+                }
+            } catch (error) {
+                errorMsg.innerText = error.message;
+                errorMsg.style.display = 'block';
+                btn.disabled = false;
+                btn.innerText = 'Ingresar al Portal';
+            }
+        });
+    </script>
+</body>
+
+</html>

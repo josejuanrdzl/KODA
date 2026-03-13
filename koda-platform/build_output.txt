@@ -1,0 +1,66 @@
+
+> koda-platform@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.35
+
+   Creating an optimized production build ...
+ ⚠ Compiled with warnings
+
+./node_modules/@ffmpeg-installer/ffmpeg/index.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@ffmpeg-installer/ffmpeg/index.js
+./lib/backend/services/whisper.js
+./lib/backend/handlers/main.js
+./app/api/telegram/route.ts
+
+./node_modules/fluent-ffmpeg/lib/options/misc.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/fluent-ffmpeg/lib/options/misc.js
+./node_modules/fluent-ffmpeg/lib/fluent-ffmpeg.js
+./node_modules/fluent-ffmpeg/index.js
+./lib/backend/services/whisper.js
+./lib/backend/handlers/main.js
+./app/api/telegram/route.ts
+
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+⚠️ [CRITICAL] SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no definidos. KODA no podrá conectar a la base de datos.
+⚠️ Credenciales de Twilio incompletas. La mensajería por WhatsApp estará deshabilitada.
+Error: Cannot find module '/Users/joserodriguez/KODA/koda-platform/node_modules/@ffmpeg-installer/darwin-arm64/package.json'
+    at t (/Users/joserodriguez/KODA/koda-platform/.next/server/app/api/telegram/route.js:1:78)
+    at 11511 (/Users/joserodriguez/KODA/koda-platform/.next/server/app/api/telegram/route.js:158:40980)
+    at t (/Users/joserodriguez/KODA/koda-platform/.next/server/webpack-runtime.js:1:143)
+    at 39888 (/Users/joserodriguez/KODA/koda-platform/.next/server/app/api/telegram/route.js:145:8507)
+    at t (/Users/joserodriguez/KODA/koda-platform/.next/server/webpack-runtime.js:1:143)
+    at 87042 (/Users/joserodriguez/KODA/koda-platform/.next/server/app/api/telegram/route.js:52:202)
+    at t (/Users/joserodriguez/KODA/koda-platform/.next/server/webpack-runtime.js:1:143)
+    at 24087 (/Users/joserodriguez/KODA/koda-platform/.next/server/app/api/telegram/route.js:1:1954)
+    at t (/Users/joserodriguez/KODA/koda-platform/.next/server/webpack-runtime.js:1:143)
+    at i (/Users/joserodriguez/KODA/koda-platform/.next/server/app/api/telegram/route.js:252:400933)
+    at /Users/joserodriguez/KODA/koda-platform/.next/server/app/api/telegram/route.js:252:400964
+    at t.X (/Users/joserodriguez/KODA/koda-platform/.next/server/webpack-runtime.js:1:1291)
+    at /Users/joserodriguez/KODA/koda-platform/.next/server/app/api/telegram/route.js:252:400946
+    at Object.<anonymous> (/Users/joserodriguez/KODA/koda-platform/.next/server/app/api/telegram/route.js:252:400992)
+    at Module._compile (node:internal/modules/cjs/loader:1761:14)
+    at Object..js (node:internal/modules/cjs/loader:1893:10)
+    at Module.load (node:internal/modules/cjs/loader:1481:32)
+    at Module._load (node:internal/modules/cjs/loader:1300:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1504:12)
+    at mod.require (/Users/joserodriguez/KODA/koda-platform/node_modules/next/dist/server/require-hook.js:65:28) {
+  code: 'MODULE_NOT_FOUND'
+}
+
+> Build error occurred
+Error: Failed to collect page data for /api/telegram
+    at /Users/joserodriguez/KODA/koda-platform/node_modules/next/dist/build/utils.js:1269:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  type: 'Error'
+}

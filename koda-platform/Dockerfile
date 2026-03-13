@@ -27,6 +27,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Instalar FFmpeg y libc6-compat para compatibilidad en Alpine
+RUN apk add --no-cache ffmpeg libc6-compat
+
 # Crea un usuario no root por seguridad
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
