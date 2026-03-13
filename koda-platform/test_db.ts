@@ -1,0 +1,1 @@
+const { supabase } = require('./lib/backend/services/supabase') as any; async function test() { const { data, error } = await supabase.from('users').select('active_context').limit(1); console.log(data); } test();

@@ -209,11 +209,31 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
     // Handle Direct Messages & Chat Context
     if (await handleDirectMessages(bot, msg, user, options)) return;
 
-    // --- SETTINGS / CONFIGURATION INTERCEPTOR ---
     const text = msg.text?.toLowerCase() || '';
+
+    // --- Connections Interceptor ---
+    const connectionRegex = /@[a-z0-9_]+/;
+    const connectionKeywords = ["conectar", "contactar", "hablar con", "mensaje a", "escribir a", "chat con"];
+    if (connectionRegex.test(text) && connectionKeywords.some(keyword => text.includes(keyword))) {
+        await handleConnections(bot, msg, user, options);
+        return;
+    }
+
+    // --- SETTINGS / CONFIGURATION INTERCEPTOR ---
     const settingsTriggers = ["/settings", "configuración", "settings", "ayuda", "help", "¿qué puedes hacer?", "menú", "opciones", "reiniciar configuración", "reset", "tutorial", "¿cómo funciona?", "comandos"];
     const messagingTriggers = ["configurar mensajes", "conectar con alguien", "cómo envío mensajes", "mensajería koda", "mi koda id", "username"];
     const googleTriggers = ["conectar gmail", "conectar mi correo", "vincular google", "conectar calendario", "mi agenda", "mis correos", "revisar mi correo", "mi correo", "gmail"];
+
+    // --- Direct KODA ID Query Interceptor ---
+    if (text.includes("mi koda id") || text.includes("cual es mi id") || text.includes("cuál es mi id") || text.includes("mi usuario koda")) {
+        if (user.koda_id) {
+            const chatId = msg.chat?.id || msg.from;
+            if (chatId) {
+                await bot.sendMessage(chatId, `👤 Tu KODA ID es: @${user.koda_id}\n\nTus amigos pueden usar este ID para invitarte a Familia o enviarte mensajes directos.`, { parse_mode: 'HTML' });
+                return;
+            }
+        }
+    }
 
     // --- Messaging Check (Interceptor) ---
     if (messagingTriggers.some(t => text.includes(t)) || (text.includes("mensaje") && !user.koda_id)) {

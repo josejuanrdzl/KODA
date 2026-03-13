@@ -61,9 +61,9 @@ export async function handleOnboarding(bot: any, msg: any, user: any, options: a
         }
 
         // --- GREETING GUARD ---
-        const lowerText = text.toLowerCase().trim();
-        const commonGreetings = ['hola', 'hi', 'hey', 'buenas', 'buenos dias', 'buenos días', 'buenas tardes', 'buenas noches', 'hello', 'start', '/start'];
-        if (commonGreetings.some(g => lowerText.startsWith(g)) && lowerText.length < 20) {
+        const cleanText = text.toLowerCase().replace(/^[¡!¿?.\s-,]+/, '').trim();
+        const commonGreetings = ['hola', 'hi', 'hey', 'buenas', 'hello', 'start', '/start', 'buen dia', 'buenos', 'que onda'];
+        if (commonGreetings.some(g => cleanText.startsWith(g)) && text.length < 30) {
             console.log(`[Onboarding] Greeting "${text}" detected in Step 1 for user ${user.id}. Re-triggering Step 0.`);
             return handleOnboarding(bot, msg, { ...user, active_context: { ...context, step: 0 } }, options);
         }

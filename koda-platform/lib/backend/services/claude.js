@@ -10,7 +10,10 @@ const anthropic = new Anthropic({
 const { buildSystemPrompt } = require('../prompt.builder');
 
 async function generateResponse(user, userMessage, chatHistory, memories, notes, reminders, recentJournals, emotionalTimeline, activeHabits = [], disabledModules = [], model = 'claude-sonnet-4-6', familyContext = null) {
-  const systemPrompt = buildSystemPrompt(user, memories, notes, reminders, recentJournals, emotionalTimeline, activeHabits, disabledModules, familyContext);
+  let systemPrompt = buildSystemPrompt(user, memories, notes, reminders, recentJournals, emotionalTimeline, activeHabits, disabledModules, familyContext);
+  
+  // Anchor de intención para evitar mezcla de contextos
+  systemPrompt += `\n\nIMPORTANTE: El usuario acaba de decir: '${userMessage}'. Enfoca tu respuesta ÚNICA Y EXCLUSIVAMENTE en atender esta solicitud. Ignora intenciones de mensajes pasados a menos que el usuario pregunte explícitamente sobre ellos.`;
   
   console.log('[DEBUG] disabledModules:', disabledModules);
   console.log('[DEBUG] systemPrompt starting with (first 200 chars):', systemPrompt.substring(0, 200));

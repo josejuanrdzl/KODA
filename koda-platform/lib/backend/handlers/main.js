@@ -161,7 +161,7 @@ async function handleMainFlow(bot, msg, user, options = {}) {
 
         // 2. Generar respuesta con Claude
         // Asegurarse de que chatHistory esté en el orden correcto (los más antiguos primero para Claude)
-        const chatHistory = [...recentMessages].reverse();
+        const chatHistory = [...recentMessages].reverse().slice(-6);
 
         // Configurar modelo según intención
         const targetModel = classifyIntent(userText);
@@ -220,12 +220,37 @@ async function handleMainFlow(bot, msg, user, options = {}) {
                     }
                 }
                 else if (action.type === 'CREATE_HABIT') {
-                    if (!hasHabits) console.log('Blocked CREATE_HABIT due to plan restriction');
-                    else await db.createHabit(user.id, action.payload.name, action.payload.description, action.payload.frequency, action.payload.reminder_time);
+                    if (!hasHabits) {
+                        console.log('Blocked CREATE_HABIT due to plan restriction');
+                    } else {
+                        try {
+                            // Check for duplicates before creating
+                            const activeHabits = await db.getActiveHabits(user.id);
+                            const newHabitName = action.payload.name.toLowerCase().trim();
+                            const exists = activeHabits.some(h => h.name.toLowerCase().trim() === newHabitName);
+                            if (exists) {
+                                console.log(`[CREATE_HABIT] Habit "${action.payload.name}" already exists for user ${user.id}. Skipping.`);
+                                strippedText = `Ya tienes un hábito activo llamado "${action.payload.name}". ¡Sigue así!`;
+                            } else {
+                                await db.createHabit(user.id, action.payload.name, action.payload.description, action.payload.frequency, action.payload.reminder_time);
+                            }
+                        } catch (e) {
+                            console.error('[CREATE_HABIT] Error creating habit:', e);
+                            strippedText = `Hubo un error al intentar crear tu hábito "${action.payload.name}". Por favor intenta más tarde.`;
+                        }
+                    }
                 }
                 else if (action.type === 'LOG_HABIT') {
-                    if (!hasHabits) console.log('Blocked LOG_HABIT due to plan restriction');
-                    else await db.logHabitCompletion(action.payload.habit_id, user.id, action.payload.completed, action.payload.note);
+                    if (!hasHabits) {
+                        console.log('Blocked LOG_HABIT due to plan restriction');
+                    } else {
+                        try {
+                            await db.logHabitCompletion(action.payload.habit_id, user.id, action.payload.completed, action.payload.note);
+                        } catch (e) {
+                            console.error('[LOG_HABIT] Error in logHabitCompletion:', e);
+                            strippedText = "Lo siento, hubo un problema al guardar tu registro de hábito en la base de datos. Por favor, inténtalo de nuevo.";
+                        }
+                    }
                 }
                 else if (action.type === 'UPDATE_HABIT_STATUS') {
                     if (!hasHabits) console.log('Blocked UPDATE_HABIT_STATUS due to plan restriction');

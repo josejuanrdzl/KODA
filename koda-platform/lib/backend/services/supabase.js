@@ -436,7 +436,7 @@ async function logHabitCompletion(habit_id, user_id, completed, note) {
     .select('id')
     .eq('habit_id', habit_id)
     .eq('log_date', log_date)
-    .single();
+    .maybeSingle();
 
   if (existingLog) {
     await supabase.from('habit_logs').update({ completed, note }).eq('id', existingLog.id);
