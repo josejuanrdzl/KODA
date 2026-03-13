@@ -8,7 +8,7 @@
 function parseActions(text) {
     const actions = [];
 
-    const actionRegex = /\[KODA_ACTION:([^:]+):(.+?)\]/g;
+    const actionRegex = /\[KODA_ACTION:([^:]+):([\s\S]+?)\]/g;
 
     let strippedText = text;
     let match;

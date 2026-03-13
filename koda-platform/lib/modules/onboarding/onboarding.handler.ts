@@ -14,20 +14,32 @@ export async function handleOnboarding(bot: any, msg: any, user: any, options: a
     
     // Ensure we have an active_context for onboarding
     let context = user.active_context;
-    if (!context || context.mode !== 'onboarding') {
+    const isNewOnboarding = !context || context.mode !== 'onboarding';
+    
+    if (isNewOnboarding) {
         context = { mode: 'onboarding', step: 0, data: {} };
     }
 
     const step = context.step;
+    const currentMsgId = msg.message_id || msg.MessageSid;
+
+    console.log(`[Onboarding] User: ${user.id}, Step: ${step}, MsgId: ${currentMsgId}, Text: "${text}"`);
 
     // --- STEP 0: Initial Welcome ---
     if (step === 0) {
+        console.log(`[Onboarding] Triggering Step 0 (Welcome) for user ${user.id}`);
         const welcomeMsg = `¡Hola! Soy *KODA*, tu copiloto inteligente. 🚀\n\nVoy a ser tu memoria, tu organizador y tu mano derecha. Todo lo que me digas lo recuerdo, y estoy disponible para ayudarte a gestionar tu vida personal y profesional.\n\nPara empezar, **¿cómo te llamas?** (Dime tu nombre como prefieras que te diga)`;
         
         await sendChannelMessage(bot, chatId, welcomeMsg, { parse_mode: 'Markdown' }, channel);
         
+        console.log(`[Onboarding] Step 0 message sent. Updating DB to Step 1 and last_msg_id: ${currentMsgId}`);
+        // Track the message context AND the ID that triggered this greeting
         await supabase.from('users').update({ 
-            active_context: { ...context, step: 1 } 
+            active_context: { 
+                ...context, 
+                step: 1, 
+                last_msg_id: currentMsgId // Store the ID to ignore it in Step 1
+            } 
         }).eq('id', userId);
         
         return null; // Handled
@@ -35,9 +47,24 @@ export async function handleOnboarding(bot: any, msg: any, user: any, options: a
 
     // --- STEP 1: Process Name ---
     if (step === 1) {
+        console.log(`[Onboarding] Checking Step 1 for user ${user.id}. LastMsgId: ${context.last_msg_id}, CurrentMsgId: ${currentMsgId}`);
+        // If this is the SAME message that triggered the welcome, ignore it and wait for the next one
+        if (currentMsgId && context.last_msg_id === currentMsgId) {
+            console.log(`[Onboarding] Ignoring message ${currentMsgId} in Step 1 as it triggered Step 0.`);
+            return null;
+        }
+
         if (!text) {
             await sendChannelMessage(bot, chatId, "Por favor, dime tu nombre para continuar:", {}, channel);
             return null;
+        }
+
+        // --- GREETING GUARD ---
+        const lowerText = text.toLowerCase().trim();
+        const commonGreetings = ['hola', 'hi', 'hey', 'buenas', 'buenos dias', 'buenos días', 'buenas tardes', 'buenas noches', 'hello', 'start', '/start'];
+        if (commonGreetings.some(g => lowerText.startsWith(g)) && lowerText.length < 20) {
+            console.log(`[Onboarding] Greeting "${text}" detected in Step 1 for user ${user.id}. Re-triggering Step 0.`);
+            return handleOnboarding(bot, msg, { ...user, active_context: { ...context, step: 0 } }, options);
         }
         
         await supabase.from('users').update({ 
