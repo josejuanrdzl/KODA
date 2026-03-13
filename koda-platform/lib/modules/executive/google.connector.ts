@@ -6,7 +6,7 @@ const ENCRYPTION_KEY = process.env.KODA_ENCRYPTION_KEY || 'koda-default-encrypti
 const ALGORITHM = 'aes-256-cbc';
 
 // Helper to decrypt tokens
-function decryptToken(encryptedText: string): string {
+export function decryptToken(encryptedText: string): string {
     try {
         const parts = encryptedText.split(':');
         const iv = Buffer.from(parts.shift() as string, 'hex');
@@ -23,7 +23,7 @@ function decryptToken(encryptedText: string): string {
 }
 
 // Helper to encrypt tokens
-function encryptToken(text: string): string {
+export function encryptToken(text: string): string {
     const iv = crypto.randomBytes(16);
     const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32));
     const cipher = crypto.createCipheriv(ALGORITHM, key, iv);

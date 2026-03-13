@@ -12,9 +12,10 @@ export async function handleOnboarding(bot: any, msg: any, user: any, options: a
     const text = msg.text?.trim() || '';
     const channel = msg._channel || 'telegram';
     
-    // Ensure we have an active_context for onboarding
     let context = user.active_context;
-    const isNewOnboarding = !context || context.mode !== 'onboarding';
+    // We consider it a new onboarding if there is no context, it's not onboarding mode, 
+    // OR if we are magically in step 1 but we never sent the welcome message (last_msg_id is missing).
+    const isNewOnboarding = !context || context.mode !== 'onboarding' || (context.mode === 'onboarding' && context.step === 1 && !context.last_msg_id);
     
     if (isNewOnboarding) {
         context = { mode: 'onboarding', step: 0, data: {} };

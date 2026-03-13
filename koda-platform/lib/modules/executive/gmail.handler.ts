@@ -2,6 +2,9 @@ const db = require('../../backend/services/supabase');
 const { supabase } = db;
 const { Anthropic } = require('@anthropic-ai/sdk');
 import { getGoogleToken, requireGmailConnector } from './google.connector';
+import { createViewToken, createActionToken } from '../../portal/portal.tokens';
+
+const appUrl = process.env.FLY_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 const anthropic = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
@@ -180,17 +183,9 @@ urgent = requiere acción hoy, important = requiere acción pronto, normal = inf
 
              let finalContent = body.trim();
              
-             // Summarize if too long
-             if (finalContent.length > 2000) {
-                 await bot.sendMessage(user.id, "El email es un poco largo, lo estoy resumiendo...", options);
-                 const summaryRes = await anthropic.messages.create({
-                     model: 'claude-3-5-sonnet-20240620',
-                     max_tokens: 500,
-                     system: "Resume este email en máximo 200 palabras, conservando datos importantes: montos, fechas, nombres, action items",
-                     messages: [ { role: 'user', content: finalContent } ]
-                 });
-                 finalContent = summaryRes.content[0].text;
-             }
+             // Extract HTML content if available and we haven't lost it yet, or use text
+             // Actually we should try to pass HTML to the viewer if possible, but plain text goes fine too.
+             // We'll pass finalContent which is clean text or HTML.
              
              // Mark as read
              await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${targetEmailId}/modify`, {
@@ -222,7 +217,15 @@ urgent = requiere acción hoy, important = requiere acción pronto, normal = inf
                  }
              }).eq('id', user.id);
 
-             await bot.sendMessage(user.id, `De: ${from}\nAsunto: ${subject}\n────────────────\n\n${finalContent}`, options);
+             const { url: link } = await createViewToken(user.id, 'email', {
+                 from,
+                 to: toHeader,
+                 subject,
+                 date: headers.find((h: any) => h.name === 'Date')?.value || new Date().toISOString(),
+                 body: finalContent
+             });
+
+             await bot.sendMessage(user.id, `De: ${from}\nAsunto: ${subject}\n\nHe preparado el correo para ti. Ábrelo aquí para leerlo completo:\n${link}`, options);
              return true;
 
          } catch (e) {
@@ -262,18 +265,19 @@ Máximo 150 palabras. Solo el cuerpo del correo, sin asunto, sin firma (solo tu 
 
              const draftText = draftRes.content[0].text;
 
-             await supabase.from('users').update({
-                 active_context: { 
-                     ...user.active_context,
-                     mode: 'gmail_reply_confirm',
-                     reply_draft: draftText
-                 }
-             }).eq('id', user.id);
-
              const cleanFromMatch = currentEmail.from.match(/^([^<]+)/);
              const cleanFrom = cleanFromMatch ? cleanFromMatch[1].trim() : currentEmail.from;
 
-             await bot.sendMessage(user.id, `📝 Borrador de respuesta para ${cleanFrom}:\n─────────────────────────────\n${draftText}\n─────────────────────────────\n¿Envío esto? Responde SÍ, NO o dime qué cambiar.`, options);
+             const { url: link } = await createActionToken(user.id, 'reply', {
+                 to: currentEmail.from,
+                 to_name: cleanFrom,
+                 subject: currentEmail.subject,
+                 message_id_header: currentEmail.message_id_header,
+                 threadId: currentEmail.id,
+                 draft: draftText
+             });
+
+             await bot.sendMessage(user.id, `📝 He redactado un borrador de respuesta para ${cleanFrom}.\n\nRevísalo, modifícalo (si quieres) y envíalo desde aquí:\n${link}`, options);
              return true;
 
          } catch (e) {
@@ -281,99 +285,6 @@ Máximo 150 palabras. Solo el cuerpo del correo, sin asunto, sin firma (solo tu 
               await bot.sendMessage(user.id, "Error redactando la respuesta.", options);
               return true;
          }
-    }
-
-    // Intents when validating the draft
-    if (user.active_context?.mode === 'gmail_reply_confirm') {
-        const confirmText = text.toLowerCase();
-        
-        if (confirmText === 'no' || confirmText === 'cancelar' || confirmText === 'cancela') {
-             await supabase.from('users').update({
-                 active_context: { ...user.active_context, mode: 'koda', reply_draft: null }
-             }).eq('id', user.id);
-             await bot.sendMessage(user.id, "Borrador descartado.", options);
-             return true;
-        }
-
-        if (confirmText === 'sí' || confirmText === 'si' || confirmText === 'envíalo' || confirmText === 'mandalo') {
-             const currentEmail = user.active_context.current_email;
-             const draft = user.active_context.reply_draft;
-             const tokenData = await getGoogleToken(user.id);
-             
-             if (!tokenData || !currentEmail || !draft) {
-                 await supabase.from('users').update({ active_context: { ...user.active_context, mode: 'koda' } }).eq('id', user.id);
-                 await bot.sendMessage(user.id, "Expiró la sesión de envío. Intenta de nuevo.", options);
-                 return true;
-             }
-
-             await bot.sendMessage(user.id, "Enviando respuesta...", options);
-
-             try {
-                 // Construct RFC 2822 message
-                 const to = currentEmail.from; // Reply to sender
-                 let subject = currentEmail.subject;
-                 if (!subject.toLowerCase().startsWith('re:')) {
-                     subject = `Re: ${subject}`;
-                 }
-
-                 const messageParts = [
-                     `To: ${to}`,
-                     `Subject: =?utf-8?B?${Buffer.from(subject).toString('base64')}?=`,
-                     `In-Reply-To: ${currentEmail.message_id_header}`,
-                     `References: ${currentEmail.message_id_header}`,
-                     'Content-Type: text/plain; charset="UTF-8"',
-                     '',
-                     draft
-                 ];
-                 const rawMessage = messageParts.join('\r\n');
-                 const encodedMessage = Buffer.from(rawMessage).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-                 await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/send`, {
-                     method: 'POST',
-                     headers: { 
-                         'Authorization': `Bearer ${tokenData.access_token}`,
-                         'Content-Type': 'application/json'
-                     },
-                     body: JSON.stringify({ raw: encodedMessage, threadId: currentEmail.id }) // Try to keep in thread
-                 });
-
-                 await supabase.from('users').update({
-                     active_context: { ...user.active_context, mode: 'koda', reply_draft: null }
-                 }).eq('id', user.id);
-
-                 await bot.sendMessage(user.id, `✅ Email enviado a ${to.match(/[^<]+/) ? to.match(/[^<]+/)[0].trim() : 'el remitente'}.`, options);
-                 return true;
-
-             } catch (e) {
-                 console.error('[Gmail Module] Error sending reply:', e);
-                 await bot.sendMessage(user.id, "No se pudo enviar el correo, revisa tu conexión.", options);
-                 return true;
-             }
-        }
-
-        // If not explicit yes/no, interpret as an instruction to change the draft
-        const originalDraft = user.active_context.reply_draft;
-        await bot.sendMessage(user.id, "Actualizando borrador...", options);
-        try {
-             const redraftRes = await anthropic.messages.create({
-                 model: 'claude-3-5-sonnet-20240620',
-                 max_tokens: 300,
-                 system: "Modifica este borrador de email basado en las instrucciones del usuario. Solo devuelve el cuerpo del correo.",
-                 messages: [
-                     { role: 'user', content: `Borrador original:\n${originalDraft}\n\nInstrucciones de cambio: ${text}` }
-                 ]
-             });
-             const newDraft = redraftRes.content[0].text;
-             await supabase.from('users').update({
-                 active_context: { ...user.active_context, reply_draft: newDraft }
-             }).eq('id', user.id);
-
-             await bot.sendMessage(user.id, `📝 Nuevo borrador:\n─────────────────────────────\n${newDraft}\n─────────────────────────────\n¿Envío esto? Responde SÍ, NO o dime qué cambiar.`, options);
-             return true;
-        } catch (e) {
-             console.error('[Gmail Module] Error updating draft:', e);
-             return true;
-        }
     }
 
     // INTENT 4: Buscar email

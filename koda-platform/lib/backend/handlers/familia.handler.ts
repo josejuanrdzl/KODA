@@ -1,4 +1,4 @@
-import { supabase } from '../services/supabase';
+const { supabase } = require('../services/supabase') as any;
 
 export async function getFamilyContext(userId: string, date?: string): Promise<string> {
   // Use today if no date provided

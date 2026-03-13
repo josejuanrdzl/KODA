@@ -1,4 +1,4 @@
-import { supabase } from '../../backend/services/supabase';
+const { supabase } = require('../../backend/services/supabase') as any;
 const { Anthropic } = require('@anthropic-ai/sdk');
 
 const anthropic = new Anthropic({
