@@ -63,7 +63,7 @@ export async function handleGmailModule(bot: any, msg: any, user: any, options: 
 urgent = requiere acción hoy, important = requiere acción pronto, normal = informativo, skip = newsletters/marketing/notificaciones`;
 
             const aiResponse = await anthropic.messages.create({
-                model: 'claude-3-5-sonnet-20240620',
+                model: 'claude-sonnet-4-5',
                 max_tokens: 1000,
                 system: systemPrompt,
                 messages: [
@@ -252,7 +252,7 @@ urgent = requiere acción hoy, important = requiere acción pronto, normal = inf
          try {
              // Query Sonnet for drafting
              const draftRes = await anthropic.messages.create({
-                 model: 'claude-3-5-sonnet-20241022',
+                 model: 'claude-sonnet-4-5',
                  max_tokens: 300,
                  system: `Redacta una respuesta profesional a un email. 
 Tono: profesional pero coloquial (como lo haría un ejecutivo moderno).
@@ -300,7 +300,7 @@ Máximo 150 palabras. Solo el cuerpo del correo, sin asunto, sin firma (solo tu 
          
          try {
              const queryRes = await anthropic.messages.create({
-                 model: 'claude-3-5-sonnet-20240620',
+                 model: 'claude-sonnet-4-5',
                  max_tokens: 50,
                  system: systemPrompt,
                  messages: [ { role: 'user', content: "Genera la query." } ]

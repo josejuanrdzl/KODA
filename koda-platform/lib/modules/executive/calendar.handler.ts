@@ -100,7 +100,7 @@ Si no se indica la fecha explícita, asume que es hoy (${new Date().toISOString(
 
          try {
              const extractRes = await anthropic.messages.create({
-                 model: 'claude-3-5-sonnet-20240620',
+                 model: 'claude-sonnet-4-5',
                  max_tokens: 300,
                  system: systemPrompt,
                  messages: [ { role: 'user', content: text } ]
