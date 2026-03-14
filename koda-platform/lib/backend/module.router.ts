@@ -167,11 +167,14 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
     for (const cmd of commands) {
         let isMatch = false;
         
-        if (cmd.trigger_type === 'exact' && text === cmd.trigger_pattern.toLowerCase()) {
+        if (!cmd.trigger_pattern) continue;
+        const pattern = cmd.trigger_pattern.toLowerCase();
+
+        if (cmd.trigger_type === 'exact' && text === pattern) {
             isMatch = true;
-        } else if (cmd.trigger_type === 'contains' && text.includes(cmd.trigger_pattern.toLowerCase())) {
+        } else if (cmd.trigger_type === 'contains' && text.includes(pattern)) {
             isMatch = true;
-        } else if (cmd.trigger_type === 'startsWith' && text.startsWith(cmd.trigger_pattern.toLowerCase())) {
+        } else if (cmd.trigger_type === 'startsWith' && text.startsWith(pattern)) {
             isMatch = true;
         } else if (cmd.trigger_type === 'regex') {
             try {
