@@ -6,16 +6,19 @@ import Redis from 'ioredis';
 const upstashUrl = process.env.UPSTASH_REDIS_URL || process.env.UPSTASH_REDIS_REST_URL || '';
 const upstashToken = process.env.UPSTASH_REDIS_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '';
 
-let redisUrl = upstashUrl;
-if (upstashUrl.startsWith('https://')) {
+const isBuild = process.env.npm_lifecycle_event === 'build' || process.env.NEXT_PHASE === 'phase-production-build';
+
+let redisUrl = isBuild ? '' : upstashUrl;
+if (!isBuild && upstashUrl.startsWith('https://')) {
     const host = upstashUrl.replace('https://', '');
     redisUrl = `rediss://default:${upstashToken}@${host}:6379`;
-} else if (!redisUrl.includes('://')) {
+} else if (!isBuild && !redisUrl.includes('://') && redisUrl !== '') {
     redisUrl = `rediss://default:${upstashToken}@${upstashUrl}:6379`;
 }
 
 export const connection = redisUrl ? new Redis(redisUrl, {
     maxRetriesPerRequest: null,
+    lazyConnect: true,
 }) : ({} as any);
 
 const inboxQueueOptions: QueueOptions = {
