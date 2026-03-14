@@ -167,8 +167,9 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
     for (const cmd of commands) {
         let isMatch = false;
         
-        if (!cmd.trigger_pattern) continue;
-        const pattern = cmd.trigger_pattern.toLowerCase();
+        const triggerText = cmd.trigger_pattern || cmd.trigger_value;
+        if (!triggerText) continue;
+        const pattern = triggerText.toLowerCase();
 
         if (cmd.trigger_type === 'exact' && text === pattern) {
             isMatch = true;
