@@ -98,6 +98,9 @@ async function handleMainFlow(bot, msg, user, options = {}) {
     const specializedModules = ['journal', 'habits', 'message_analysis', 'weather', 'fx-rates', 'spotify', 'sports', 'luna', 'gmail', 'calendar', 'messaging', 'memory', 'shopping', 'familia'];
     const activeModule = options.activeModule || null;
 
+    /*
+    // OVER-AGGRESSIVE FILTERING REMOVED:
+    // This was preventing Claude from autonomously selecting modules when the bot router didn't catch an exact keyword.
     specializedModules.forEach(mod => {
         if (!disabledModules.includes(mod) && activeModule !== mod) {
             // No deshabilitar el análisis si es un forward
@@ -105,6 +108,7 @@ async function handleMainFlow(bot, msg, user, options = {}) {
             disabledModules.push(mod);
         }
     });
+    */
 
     // Si es un reenvío, inyectamos una instrucción clara a Claude
     if (isForwarded) {
