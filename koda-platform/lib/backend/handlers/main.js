@@ -94,6 +94,18 @@ async function handleMainFlow(bot, msg, user, options = {}) {
     // Detectar reenvíos (forwards de Telegram)
     const isForwarded = Boolean(msg.forward_date || msg.forward_from || msg.forward_origin || msg.forward_sender_name);
 
+    // CLEANUP PROMPT: Remover instrucciones de módulos especializados cuando no están activos
+    const specializedModules = ['journal', 'habits', 'message_analysis', 'weather', 'fx-rates', 'spotify', 'sports', 'luna', 'gmail', 'calendar', 'messaging', 'memory', 'shopping', 'familia'];
+    const activeModule = options.activeModule || null;
+
+    specializedModules.forEach(mod => {
+        if (!disabledModules.includes(mod) && activeModule !== mod) {
+            // No deshabilitar el análisis si es un forward
+            if (mod === 'message_analysis' && isForwarded) return;
+            disabledModules.push(mod);
+        }
+    });
+
     // Si es un reenvío, inyectamos una instrucción clara a Claude
     if (isForwarded) {
         if (!hasMessageAnalysis) {
@@ -161,7 +173,10 @@ async function handleMainFlow(bot, msg, user, options = {}) {
 
         // 2. Generar respuesta con Claude
         // Asegurarse de que chatHistory esté en el orden correcto (los más antiguos primero para Claude)
-        const chatHistory = [...recentMessages].reverse().slice(-6);
+        const chatHistory = [...recentMessages]
+            .filter(m => m.role === 'user' || m.role === 'assistant')
+            .reverse()
+            .slice(-6);
 
         // Configurar modelo según intención
         const targetModel = classifyIntent(userText);
@@ -186,7 +201,7 @@ async function handleMainFlow(bot, msg, user, options = {}) {
         );
 
         // 3. Parsear acciones de la respuesta
-        const { strippedText, actions } = parseActions(aiResponse.text);
+        let { strippedText, actions } = parseActions(aiResponse.text);
 
         // 4. Ejecutar acciones detectadas
         for (const action of actions) {

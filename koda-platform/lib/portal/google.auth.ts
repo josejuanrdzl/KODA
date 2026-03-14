@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import jwt from 'jsonwebtoken';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
@@ -27,6 +28,21 @@ export function getAuthUrl(state: string) {
     scope: SCOPES,
     state // Used to pass the KODA user.id through the OAuth flow
   });
+}
+
+export async function generateGoogleAuthUrl(userId: string, telegramId: string) {
+  // 1. Crear el payload
+  const payload = { userId, telegramId };
+  
+  // 2. Firmar el JWT (expira en 10 min)
+  const token = jwt.sign(
+    payload, 
+    process.env.KODA_JWT_SECRET || 'dev-secret-key-123',
+    { expiresIn: '10m' }
+  );
+
+  // 3. Generar la URL con el JWT en el 'state'
+  return getAuthUrl(token);
 }
 
 export async function getTokensFromCode(code: string) {

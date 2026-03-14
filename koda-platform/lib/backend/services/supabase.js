@@ -439,9 +439,11 @@ async function logHabitCompletion(habit_id, user_id, completed, note) {
     .maybeSingle();
 
   if (existingLog) {
-    await supabase.from('habit_logs').update({ completed, note }).eq('id', existingLog.id);
+    const { error } = await supabase.from('habit_logs').update({ completed, note }).eq('id', existingLog.id);
+    if (error) throw error;
   } else {
-    await supabase.from('habit_logs').insert([{ habit_id, user_id, log_date, completed, note }]);
+    const { error } = await supabase.from('habit_logs').insert([{ habit_id, user_id, log_date, completed, note }]);
+    if (error) throw error;
   }
 
   // Update the habit streaks

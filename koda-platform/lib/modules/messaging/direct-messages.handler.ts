@@ -30,15 +30,19 @@ export async function handleDirectMessages(bot: any, msg: any, user: any, option
     const text = msg.text?.trim() || '';
 
     // Leaving chat mode
-    if (/^(salir|volver|exit|modo koda)$/i.test(text) && user.active_context?.mode === 'chat') {
-        await supabase.from('users').update({ active_context: { mode: 'koda' } }).eq('id', user.id);
+    if (/^(salir|volver|exit|modo koda)$/i.test(text) && user.exclusive_mode === 'chat') {
+        await supabase.from('users').update({ 
+            exclusive_mode: null, 
+            exclusive_data: null, 
+            active_context: { mode: 'koda' } 
+        }).eq('id', user.id);
         await bot.sendMessage(user.id, "Has salido del chat. Estás de vuelta en modo KODA.", options);
         return true;
     }
 
     // Processing incoming messages during active Chat Mode
-    if (user.active_context?.mode === 'chat' && user.active_context?.context_id) {
-        const recipientId = user.active_context.context_id;
+    if (user.exclusive_mode === 'chat' && user.exclusive_data?.context_id) {
+        const recipientId = user.exclusive_data.context_id;
         
         const encryptedContent = encryptMessage(text);
         
@@ -97,6 +101,8 @@ export async function handleDirectMessages(bot: any, msg: any, user: any, option
 
          // Activate chat context
          await supabase.from('users').update({ 
+             exclusive_mode: 'chat',
+             exclusive_data: { context_id: targetUser.id },
              active_context: { mode: 'chat', context_id: targetUser.id } 
          }).eq('id', user.id);
          

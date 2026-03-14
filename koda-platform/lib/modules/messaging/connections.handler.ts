@@ -238,3 +238,116 @@ export async function handleConnections(bot: any, msg: any, user: any, options: 
 
     return false;
 }
+
+export async function connectByUsername(bot: any, userId: string, targetKodaIdWithAt: string, user: any): Promise<string> {
+    const targetKodaId = targetKodaIdWithAt.replace('@', '');
+
+    const { data: target } = await supabase
+        .from('users')
+        .select('id, name, koda_id, telegram_id, whatsapp_id')
+        .eq('koda_id', targetKodaId)
+        .single();
+
+    if (!target) {
+        return `No encontré a ${targetKodaIdWithAt} en KODA.`;
+    }
+
+    const { data: existing } = await supabase
+        .from('koda_connections')
+        .select('id, status')
+        .or(`and(user_id_1.eq.${userId},user_id_2.eq.${target.id}),and(user_id_1.eq.${target.id},user_id_2.eq.${userId})`)
+        .maybeSingle();
+
+    if (existing?.status === 'active') {
+        return `Ya estás conectado con ${targetKodaIdWithAt} ✅\nEscribe "abrir chat con ${targetKodaIdWithAt}" para enviarle un mensaje.`;
+    }
+
+    if (existing?.status === 'pending') {
+        return `Ya tienes una solicitud pendiente con ${targetKodaIdWithAt}.`;
+    }
+
+    const userA = userId < target.id ? userId : target.id;
+    const userB = userId < target.id ? target.id : userId;
+
+    await supabase.from('koda_connections').insert({
+        user_id_1: userA,
+        user_id_2: userB,
+        initiated_by: userId,
+        status: 'pending',
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    });
+
+    const targetChatId = target.whatsapp_id || target.telegram_id;
+    const targetChannel = target.whatsapp_id ? 'whatsapp' : 'telegram';
+    if (targetChatId) {
+        await sendChannelMessage(bot, targetChatId, 
+            `📨 *${user.koda_id ? '@'+user.koda_id : user.name}* quiere conectarse contigo en KODA.\n\n` +
+            `Responde *ACEPTAR* o *RECHAZAR*`, 
+            { parse_mode: 'Markdown' }, targetChannel
+        );
+
+        await supabase.from('users')
+            .update({
+                exclusive_mode: 'action_pending',
+                exclusive_data: {
+                    action: 'connection_request',
+                    from_user_id: userId,
+                    from_koda_id: user.koda_id ? '@'+user.koda_id : user.name
+                }
+            })
+            .eq('id', target.id);
+    }
+
+    return `✅ Solicitud enviada a ${targetKodaIdWithAt}.\nTe aviso aquí mismo cuando la acepte.`;
+}
+
+export async function handleConnectionAction(bot: any, msg: any, user: any, options: any): Promise<string | null> {
+    const text = msg.text?.toLowerCase().trim() || '';
+    const data = user.exclusive_data || {};
+
+    if (data.action === 'connection_request') {
+        if (text === 'aceptar') {
+            const userA = data.from_user_id < user.id ? data.from_user_id : user.id;
+            const userB = data.from_user_id < user.id ? user.id : data.from_user_id;
+
+            await supabase.from('koda_connections')
+                .update({ status: 'active', connected_at: new Date().toISOString() })
+                .eq('user_id_1', userA)
+                .eq('user_id_2', userB)
+                .eq('status', 'pending');
+            
+            await supabase.from('users').update({ exclusive_mode: null, exclusive_data: null }).eq('id', user.id);
+
+            const { data: initiator } = await supabase.from('users').select('telegram_id, whatsapp_id').eq('id', data.from_user_id).single();
+            const initChatId = initiator?.whatsapp_id || initiator?.telegram_id;
+            const initChannel = initiator?.whatsapp_id ? 'whatsapp' : 'telegram';
+            
+            if (initChatId) {
+                await sendChannelMessage(bot, initChatId, 
+                    `✅ ${user.koda_id ? '@'+user.koda_id : user.name} aceptó tu solicitud.\n` +
+                    `Escribe "abrir chat con ${user.koda_id ? '@'+user.koda_id : user.name}" para chatear.`,
+                    { parse_mode: 'Markdown' }, initChannel);
+            }
+
+            return `✅ ¡Conectado con ${data.from_koda_id}!\nEscribe "abrir chat con ${data.from_koda_id}" para enviarle un mensaje.`;
+        }
+        
+        if (text === 'rechazar') {
+            const userA = data.from_user_id < user.id ? data.from_user_id : user.id;
+            const userB = data.from_user_id < user.id ? user.id : data.from_user_id;
+
+            await supabase.from('koda_connections')
+                .delete()
+                .eq('user_id_1', userA)
+                .eq('user_id_2', userB)
+                .eq('status', 'pending');
+                
+            await supabase.from('users').update({ exclusive_mode: null, exclusive_data: null }).eq('id', user.id);
+            return `Solicitud rechazada.`;
+        }
+
+        return "Por favor responde ACEPTAR o RECHAZAR a la solicitud de conexión.";
+    }
+
+    return null;
+}

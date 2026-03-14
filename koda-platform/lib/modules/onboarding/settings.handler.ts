@@ -2,6 +2,7 @@ import { sendChannelMessage } from '../../backend/utils/messenger';
 const db = require('../../backend/services/supabase');
 const { supabase } = db;
 import { checkModuleAccess } from '../../backend/module.router';
+import { generateGoogleAuthUrl } from '../../portal/google.auth';
 
 /**
  * Main handler for the Settings and Configuration Menu.
@@ -18,6 +19,34 @@ export async function handleSettings(bot: any, msg: any, user: any, options: any
     // If we are in messaging onboarding mode, delegate to sub-handler
     if (context?.mode === 'messaging_onboarding') {
         return await handleMessagingOnboarding(bot, msg, user, options);
+    }
+
+    // --- DIRECT COMMAND INTERCEPTORS ---
+    const kodaIdTriggers = ["mi koda id", "cual es mi id", "cuál es mi id", "mi usuario koda", "show_koda_id"];
+    if (kodaIdTriggers.some(t => text.includes(t))) {
+        if (user.koda_id) {
+            await sendChannelMessage(bot, chatId, `👤 Tu KODA ID es: @${user.koda_id}\n\nTus amigos pueden usar este ID para invitarte a Familia o enviarte mensajes directos.`, { parse_mode: 'HTML' }, channel);
+            return null;
+        } else {
+            const reply = "Aún no tienes un KODA ID configurado. Cambia a KODA ID en opciones.";
+            await sendChannelMessage(bot, chatId, reply, {}, channel);
+            return null;
+        }
+    }
+
+    const commandsTriggers = ["comandos", "qué comandos", "lista de comandos", "show_commands"];
+    if (commandsTriggers.some(t => text.includes(t))) {
+         let cmds = "📋 *Comandos KODA Disponibles*\n\n";
+         cmds += "• *settings* / *menú* - Abrir configuración central\n";
+         cmds += "• *mi koda id* - Muestra tu ID único\n";
+         cmds += "• *clima en [ciudad]* - Clima actual\n";
+         cmds += "• *abrir chat con @usuario* - Mensaje directo (si están conectados)\n";
+         cmds += "• *mensaje secreto a @usuario* - Enviar un secreto seguro (ver 'leer secreto')\n";
+         cmds += "• *ver mis chats* - Ver bandeja de entrada\n";
+         cmds += "\n_Nota: Los comandos disponibles dependen de tu plan activo._";
+         
+         await sendChannelMessage(bot, chatId, cmds, { parse_mode: 'Markdown' }, channel);
+         return null;
     }
 
     if (context?.mode === 'google_onboarding') {
@@ -420,7 +449,7 @@ async function handleGoogleOnboarding(bot: any, msg: any, user: any, options: an
             return null;
         }
         // Has access, move to connection check
-        return await checkGoogleConnectionStatus(bot, chatId, userId, channel, context);
+        return await checkGoogleConnectionStatus(bot, chatId, userId, channel, context, user);
     }
 
     if (step === 'upsell') {
@@ -455,7 +484,7 @@ async function handleGoogleOnboarding(bot: any, msg: any, user: any, options: an
     return null;
 }
 
-async function checkGoogleConnectionStatus(bot: any, chatId: string, userId: string, channel: string, context: any) {
+async function checkGoogleConnectionStatus(bot: any, chatId: string, userId: string, channel: string, context: any, user: any) {
     const { data: connector } = await supabase
         .from('connectors')
         .select('id')
@@ -475,12 +504,12 @@ async function checkGoogleConnectionStatus(bot: any, chatId: string, userId: str
         await sendChannelMessage(bot, chatId, msg, { parse_mode: 'Markdown' }, channel);
         return null;
     } else {
-        const portalUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://koda.app';
+        const authUrl = await generateGoogleAuthUrl(user.id, user.telegram_id);
         const instrMsg = `Para que pueda leer tu ${context.data.module === 'gmail' ? 'correo' : 'agenda'}, necesito que vincules tu cuenta de Google.\n\n` +
-            `1️⃣ Ve a tu panel en: ${portalUrl}/dashboard\n` +
-            `2️⃣ Haz clic en "Conectar Google"\n` +
-            `3️⃣ Sigue los pasos de autorización de Google\n\n` +
-            `Cuando hayas terminado, vuelve aquí y escribe *LISTO*.`;
+            `🔗 [Conectar Google](${authUrl})\n\n` +
+            `El link expira en 10 minutos.\n` +
+            `Cuando termines de autorizar te aviso aquí mismo ` +
+            `— no necesitas escribir nada.`;
         
         await updateContext(userId, { ...context, step: 'awaiting_connection' });
         await sendChannelMessage(bot, chatId, instrMsg, { parse_mode: 'Markdown' }, channel);

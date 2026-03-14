@@ -110,7 +110,7 @@ export async function requireGmailConnector(userId: string, bot: any, options: a
     const tokenData = await getGoogleToken(userId);
     
     if (!tokenData) {
-        const portalUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://koda.app';
+        const portalUrl = process.env.FLY_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
         await bot.sendMessage(
             userId, 
             `Para usar las funciones de Google necesitas conectar tu cuenta.\n\nVisita el portal para conectar: ${portalUrl}/dashboard\n\nUna vez conectado, escríbeme "revisar mi correo" o "mi agenda" para empezar.`, 

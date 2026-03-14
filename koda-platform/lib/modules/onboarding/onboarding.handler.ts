@@ -4,7 +4,7 @@ const { supabase } = db;
 
 /**
  * Main handler for the General Onboarding Flow.
- * Intercepts messages when user.onboarding_complete is false.
+ * Intercepts messages when user.onboarding_complete is false or when exclusive_mode = 'onboarding'.
  */
 export async function handleOnboarding(bot: any, msg: any, user: any, options: any): Promise<string | null> {
     const userId = user.id;
@@ -12,16 +12,9 @@ export async function handleOnboarding(bot: any, msg: any, user: any, options: a
     const text = msg.text?.trim() || '';
     const channel = msg._channel || 'telegram';
     
-    let context = user.active_context;
-    // We consider it a new onboarding if there is no context, it's not onboarding mode, 
-    // OR if we are magically in step 1 but we never sent the welcome message (last_msg_id is missing).
-    const isNewOnboarding = !context || context.mode !== 'onboarding' || (context.mode === 'onboarding' && context.step === 1 && !context.last_msg_id);
-    
-    if (isNewOnboarding) {
-        context = { mode: 'onboarding', step: 0, data: {} };
-    }
-
-    const step = context.step;
+    let exclusiveData = user.exclusive_data || {};
+    // Normalize step logic
+    const step = exclusiveData.step || 0;
     const currentMsgId = msg.message_id || msg.MessageSid;
 
     console.log(`[Onboarding] User: ${user.id}, Step: ${step}, MsgId: ${currentMsgId}, Text: "${text}"`);
@@ -33,13 +26,11 @@ export async function handleOnboarding(bot: any, msg: any, user: any, options: a
         
         await sendChannelMessage(bot, chatId, welcomeMsg, { parse_mode: 'Markdown' }, channel);
         
-        console.log(`[Onboarding] Step 0 message sent. Updating DB to Step 1 and last_msg_id: ${currentMsgId}`);
-        // Track the message context AND the ID that triggered this greeting
         await supabase.from('users').update({ 
-            active_context: { 
-                ...context, 
+            exclusive_data: { 
+                ...exclusiveData, 
                 step: 1, 
-                last_msg_id: currentMsgId // Store the ID to ignore it in Step 1
+                last_msg_id: currentMsgId
             } 
         }).eq('id', userId);
         
@@ -48,30 +39,28 @@ export async function handleOnboarding(bot: any, msg: any, user: any, options: a
 
     // --- STEP 1: Process Name ---
     if (step === 1) {
-        console.log(`[Onboarding] Checking Step 1 for user ${user.id}. LastMsgId: ${context.last_msg_id}, CurrentMsgId: ${currentMsgId}`);
-        // If this is the SAME message that triggered the welcome, ignore it and wait for the next one
-        if (currentMsgId && context.last_msg_id === currentMsgId) {
-            console.log(`[Onboarding] Ignoring message ${currentMsgId} in Step 1 as it triggered Step 0.`);
-            return null;
+        if (currentMsgId && exclusiveData.last_msg_id === currentMsgId) {
+             console.log(`[Onboarding] Ignoring message ${currentMsgId} in Step 1 as it triggered Step 0.`);
+             return null;
         }
 
         if (!text) {
-            await sendChannelMessage(bot, chatId, "Por favor, dime tu nombre para continuar:", {}, channel);
-            return null;
+             await sendChannelMessage(bot, chatId, "Por favor, dime tu nombre para continuar:", {}, channel);
+             return null;
         }
 
         // --- GREETING GUARD ---
         const cleanText = text.toLowerCase().replace(/^[¡!¿?.\s-,]+/, '').trim();
         const commonGreetings = ['hola', 'hi', 'hey', 'buenas', 'hello', 'start', '/start', 'buen dia', 'buenos', 'que onda'];
         if (commonGreetings.some(g => cleanText.startsWith(g)) && text.length < 30) {
-            console.log(`[Onboarding] Greeting "${text}" detected in Step 1 for user ${user.id}. Re-triggering Step 0.`);
-            return handleOnboarding(bot, msg, { ...user, active_context: { ...context, step: 0 } }, options);
+             console.log(`[Onboarding] Greeting "${text}" detected in Step 1 for user ${user.id}. Re-triggering Step 0.`);
+             return handleOnboarding(bot, msg, { ...user, exclusive_data: { ...exclusiveData, step: 0 } }, options);
         }
         
         await supabase.from('users').update({ 
             name: text,
             full_name: text,
-            active_context: { ...context, step: 2 }
+            exclusive_data: { ...exclusiveData, step: 2 }
         }).eq('id', userId);
 
         const kodaIdMsg = `¡Mucho gusto, *${text}*! 🙌\n\nPara que podamos interactuar mejor, necesito que elijas tu *KODA ID*. Es un nombre único (como @usuario) que te servirá para que otros te encuentren.\n\n**Escribe el KODA ID que deseas** (solo letras, números y guiones bajos):`;
@@ -85,19 +74,19 @@ export async function handleOnboarding(bot: any, msg: any, user: any, options: a
         const requestedId = text.replace(/^@/, '').toLowerCase();
         
         if (!/^[a-z0-9_]{3,20}$/.test(requestedId)) {
-            await sendChannelMessage(bot, chatId, "Formato inválido. Usa solo minúsculas, números y guiones bajos (3-20 caracteres). Intenta con otro:", {}, channel);
-            return null;
+             await sendChannelMessage(bot, chatId, "Formato inválido. Usa solo minúsculas, números y guiones bajos (3-20 caracteres). Intenta con otro:", {}, channel);
+             return null;
         }
 
         const { data: existing } = await supabase.from('users').select('id').eq('koda_id', requestedId).maybeSingle();
         if (existing && existing.id !== userId) {
-            await sendChannelMessage(bot, chatId, `⚠️ El KODA ID @${requestedId} ya está en uso. Por favor elige otro:`, {}, channel);
-            return null;
+             await sendChannelMessage(bot, chatId, `⚠️ El KODA ID @${requestedId} ya está en uso. Por favor elige otro:`, {}, channel);
+             return null;
         }
 
         await supabase.from('users').update({ 
-            koda_id: requestedId,
-            active_context: { ...context, step: 3 }
+             koda_id: requestedId,
+             exclusive_data: { ...exclusiveData, step: 3 }
         }).eq('id', userId);
 
         const configMsg = `¡Perfecto! Tu KODA ID es *@${requestedId}*. ✅\n\nAhora, unas configuraciones rápidas:\n**¿Desde qué ciudad me escribes?** Esto me servirá para darte el clima y noticias locales.`;
@@ -109,39 +98,39 @@ export async function handleOnboarding(bot: any, msg: any, user: any, options: a
     // --- STEP 3: Process Configuration (City & Briefing Time) ---
     if (step === 3) {
         // Part A: City
-        if (!context.data.city) {
-            await supabase.from('memories').upsert({
-                user_id: userId,
-                category: 'config',
-                key: 'ciudad',
-                value: text,
-                context: 'system'
-            }, { onConflict: 'user_id, category, key' });
+        if (!exclusiveData.city) {
+             await supabase.from('memories').upsert({
+                 user_id: userId,
+                 category: 'config',
+                 key: 'ciudad',
+                 value: text,
+                 context: 'system'
+             }, { onConflict: 'user_id, category, key' });
 
-            await supabase.from('users').update({
-                active_context: { ...context, data: { ...context.data, city: text } }
-            }).eq('id', userId);
+             await supabase.from('users').update({
+                 exclusive_data: { ...exclusiveData, city: text }
+             }).eq('id', userId);
 
-            const timeMsg = `¡Entendido! Te tengo ubicado en *${text}*. 📍\n\n**¿A qué hora te gustaría recibir tu 'Good Morning KODA'?** Es un resumen de tu agenda, clima y pendientes para empezar el día. (Responde en formato HH:MM, ej: 08:30)`;
-            
-            await sendChannelMessage(bot, chatId, timeMsg, { parse_mode: 'Markdown' }, channel);
-            return null;
+             const timeMsg = `¡Entendido! Te tengo ubicado en *${text}*. 📍\n\n**¿A qué hora te gustaría recibir tu 'Good Morning KODA'?** Es un resumen de tu agenda, clima y pendientes para empezar el día. (Responde en formato HH:MM, ej: 08:30)`;
+             
+             await sendChannelMessage(bot, chatId, timeMsg, { parse_mode: 'Markdown' }, channel);
+             return null;
         }
 
         // Part B: Morning Briefing Time
         const timeMatch = text.match(/^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/);
         if (!timeMatch) {
-            await sendChannelMessage(bot, chatId, "⚠️ Por favor usa el formato HH:MM (ejemplo 07:45):", {}, channel);
-            return null;
+             await sendChannelMessage(bot, chatId, "⚠️ Por favor usa el formato HH:MM (ejemplo 07:45):", {}, channel);
+             return null;
         }
 
         await supabase.from('users').update({
-            proactive_good_morning: text,
-            active_context: { ...context, step: 4 }
+             proactive_good_morning: text,
+             exclusive_data: { ...exclusiveData, step: 4 }
         }).eq('id', userId);
 
         // Recursive call to handle Step 4 immediately
-        return handleOnboarding(bot, msg, { ...user, active_context: { ...context, step: 4 } }, options);
+        return handleOnboarding(bot, msg, { ...user, exclusive_data: { ...exclusiveData, step: 4 } }, options);
     }
 
     // --- STEP 4: Capabilities ---
@@ -155,17 +144,19 @@ export async function handleOnboarding(bot: any, msg: any, user: any, options: a
         capabilities += `💬 *Mensajería*: Puedo ayudarte a redactar y gestionar mensajes.\n\n`;
         
         if (plan === 'executive' || plan === 'business') {
-            capabilities += `💼 *Modo Ejecutivo*: Tienes acceso a todas las herramientas avanzadas.`;
+             capabilities += `💼 *Modo Ejecutivo*: Tienes acceso a todas las herramientas avanzadas.`;
         } else {
-            capabilities += `✨ *Plan Personal*: Tienes las funciones esenciales activas. Pregúntame si quieres saber más sobre los planes Executive.`;
+             capabilities += `✨ *Plan Personal*: Tienes las funciones esenciales activas. Pregúntame si quieres saber más sobre los planes Executive.`;
         }
 
         await sendChannelMessage(bot, chatId, capabilities, { parse_mode: 'Markdown' }, channel);
 
         // --- STEP 5: Finalization ---
         await supabase.from('users').update({
-            onboarding_complete: true,
-            active_context: { mode: 'koda' }
+             onboarding_complete: true,
+             exclusive_mode: null,
+             exclusive_data: null,
+             active_context: { mode: 'koda' }
         }).eq('id', userId);
 
         return "¡Ahora sí, empecemos! ¿En qué puedo ayudarte hoy?";
