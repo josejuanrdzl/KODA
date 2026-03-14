@@ -504,12 +504,16 @@ async function checkGoogleConnectionStatus(bot: any, chatId: string, userId: str
         await sendChannelMessage(bot, chatId, msg, { parse_mode: 'Markdown' }, channel);
         return null;
     } else {
-        const authUrl = await generateGoogleAuthUrl(user.id, user.telegram_id);
-        const instrMsg = `Para que pueda leer tu ${context.data.module === 'gmail' ? 'correo' : 'agenda'}, necesito que vincules tu cuenta de Google.\n\n` +
-            `🔗 [Conectar Google](${authUrl})\n\n` +
-            `El link expira en 10 minutos.\n` +
-            `Cuando termines de autorizar te aviso aquí mismo ` +
-            `— no necesitas escribir nada.`;
+        const authUrl = await generateGoogleAuthUrl(
+          user.id, 
+          user.telegram_id
+        )
+
+        const instrMsg = `Para conectar tu Gmail haz clic aquí:\n\n` +
+          `🔗 [Conectar Google](${authUrl})\n\n` +
+          `El link expira en 10 minutos.\n` +
+          `Cuando termines de autorizar te aviso aquí mismo ` +
+          `— no necesitas escribir nada.`;
         
         await updateContext(userId, { ...context, step: 'awaiting_connection' });
         await sendChannelMessage(bot, chatId, instrMsg, { parse_mode: 'Markdown' }, channel);
