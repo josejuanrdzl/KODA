@@ -96,20 +96,22 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
     const text = msg.text?.toLowerCase().trim() || '';
 
     // --- DIRECT CONNECTION INTENT INTERCEPTION ---
-    const hasUsername = /@[a-z0-9_]+/.test(text);
-    const connectionWords = [
-        'conectar', 'contactar', 'hablar con',
-        'chat con', 'mensaje a', 'escribir a',
-        'quiero conectar', 'quiero contactar'
+    const msgLower = text;
+    const usernameMatch = text.match(/@([a-z0-9_]+)/);
+    
+    const connectionTriggers = [
+        'conectar con', 'contactar con', 'hablar con',
+        'chat con', 'quiero conectar', 'quiero contactar',
+        'mensaje a', 'escribir a'
     ];
-    const hasConnectionWord = connectionWords.some(w => text.includes(w));
+    
+    const hasConnectionTrigger = connectionTriggers.some(
+        t => msgLower.includes(t)
+    );
 
-    if (hasUsername && hasConnectionWord) {
-        const match = text.match(/@([a-z0-9_]+)/);
-        if (match) {
-            const targetKodaId = '@' + match[1].toLowerCase();
-            return await connectByUsername(bot, user.id, targetKodaId, user);
-        }
+    if (usernameMatch && hasConnectionTrigger) {
+        const targetKodaId = '@' + usernameMatch[1].toLowerCase();
+        return await connectByUsername(bot, user.id, targetKodaId, user);
     }
 
     // --- 1. EXCLUSIVE MODE BYPASS ---
