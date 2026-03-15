@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import TelegramBot from 'node-telegram-bot-api';
-import { getSessionUser } from '@/lib/backend/session';
+import { getSession, updateSession } from '@/lib/backend/session.manager';
 
 const db = require('@/lib/backend/services/supabase');
 import { routeMessage } from '@/lib/backend/module.router';
@@ -35,8 +35,8 @@ export async function POST(request: Request) {
         const bot = new TelegramBot(botToken, { polling: false });
         const telegramId = msg.from.id.toString();
 
-        const currentUsername = msg.from.username ? msg.from.username.toLowerCase() : null;
-        const user = await getSessionUser(telegramId, currentUsername, msg.from.first_name);
+        const channel = 'telegram';
+        const user = await getSession(channel, telegramId);
 
         // We can pass a flag inside `user` or as a 4th argument to indicate we want the generated text returned
         const options: any = { returnReply: true };
@@ -48,16 +48,21 @@ export async function POST(request: Request) {
         if (user.onboarding_complete === false) {
             const onboardingReply = await handleOnboarding(bot, msg, user, options);
             if (onboardingReply) {
+                await updateSession(user, {});
                 return NextResponse.json({
                     channel: 'telegram',
                     chatId: msg.chat.id,
                     reply: onboardingReply
                 });
             }
+            await updateSession(user, {});
             return NextResponse.json({ status: "ok" });
         }
 
         const reply = await routeMessage(bot, msg, user, options);
+
+        // Update session in Redis with any changes made by modules
+        await updateSession(user, {});
 
         if (typeof reply === 'string') {
             // Asynchronous indexing (fire and forget)
