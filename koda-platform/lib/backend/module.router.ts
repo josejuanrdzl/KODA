@@ -23,6 +23,7 @@ import { handleCalendarModule } from '../modules/executive/calendar.handler';
 
 // Import Settings handler
 import { handleSettings } from '../modules/onboarding/settings.handler';
+import { handleTravelLocation } from './handlers/travel.handler';
 
 import { handleOnboarding } from '../modules/onboarding/onboarding.handler';
 import { redis } from '../redis';
@@ -209,6 +210,7 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
 
         // Interactive Handlers
         if (module === 'settings') return await handleSettings(bot, msg, user, options);
+        if (module === 'travel') return await handleTravelLocation(msg, user, matchedCommand.intent, options);
         if (module === 'messaging') return await handleDirectMessages(bot, msg, user, options);
         if (module === 'connections') return await handleConnections(bot, msg, user, options);
         if (module === 'gmail') return await handleGmailModule(bot, msg, user, options);
@@ -219,7 +221,7 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
         try {
             if (module === 'weather') {
                  const match = text.match(/en\s+([a-zA-Z\s]+)(\?|$)/i);
-                 const city = match ? match[1].trim() : undefined;
+                 const city = match ? match[1].trim() : (options?.location?.city || undefined);
                  injectedData = await getWeather(user.id, city);
             } else if (module === 'fx-rates') {
                  injectedData = await getExchangeRates('MXN');

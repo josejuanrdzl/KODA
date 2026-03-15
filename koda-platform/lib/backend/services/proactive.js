@@ -61,18 +61,23 @@ function startCron(bot) {
                 // If the user disabled proactive messaging via /config proactivo off, skip
                 if (!isProactiveEnabled) continue;
 
-                const userTz = user.timezone || 'America/Chihuahua';
-
-                let localHour;
-                let todayStr;
+                // Get full session to leverage unified location/temporal logic
+                const { getSession } = require('../session.manager');
+                let session;
                 try {
-                    const localHourStr = now.toLocaleString("en-US", { timeZone: userTz, hour: '2-digit', hour12: false });
-                    localHour = parseInt(localHourStr);
-                    todayStr = now.toLocaleDateString("en-US", { timeZone: userTz });
+                    session = await getSession(user.whatsapp_id ? 'whatsapp' : 'telegram', user.whatsapp_id || user.telegram_id);
                 } catch (e) {
-                    console.error("Timezone error for user", user.id, e);
-                    continue; // Skip if invalid tz
+                    console.error("Error getting session for proactive:", e);
+                    continue;
                 }
+
+                if (!session || !session.temporal) {
+                    continue; // Fallback missing session
+                }
+
+                const localHour = session.temporal.localHour;
+                const todayStr = session.temporal.localDate;
+                const userTz = session.temporal.timezone;
 
                 let activeType = null;
                 let promptInstruction = '';
@@ -95,16 +100,8 @@ function startCron(bot) {
                 const hasWeather = await checkModuleAccess(user, 'weather');
                 if (hasWeather) {
                     try {
-                        const { data: locFacts } = await db.supabase
-                            .from('memories')
-                            .select('value')
-                            .eq('user_id', user.id)
-                            .eq('category', 'config')
-                            .eq('key', 'ciudad')
-                            .limit(1);
-
-                        const city = locFacts && locFacts.length > 0 ? locFacts[0].value : null;
-                        if (city) {
+                        const city = session.effectiveCity;
+                        if (city && city !== 'Desconocida') {
                                 const weatherRes = await axios.get(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
                                 if (weatherRes.data && weatherRes.data.current_condition) {
                                     const curr = weatherRes.data.current_condition[0];

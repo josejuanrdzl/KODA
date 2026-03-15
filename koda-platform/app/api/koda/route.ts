@@ -39,7 +39,16 @@ export async function POST(request: Request) {
         const user = await getSession(channel, telegramId);
 
         // We can pass a flag inside `user` or as a 4th argument to indicate we want the generated text returned
-        const options: any = { returnReply: true };
+        const options: any = { 
+            returnReply: true,
+            location: {
+                city: user.effectiveCity,
+                country: user.country,
+                lat: user.lat,
+                lng: user.lng,
+            },
+            temporal: user.temporal // This brings timezone, localTime, localDate, localHour, dayOfWeek, isWeekend
+        };
 
         // Select the AI Engine for this user based on BYOK, plan, or fallbacks
         options.aiEngine = await selectAIEngine(user.id);

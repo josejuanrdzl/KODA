@@ -35,6 +35,13 @@ export interface SessionObject {
     lastModuleSlug: string;
     lastMessageAt: number;
     conversationTurn: number;
+    temporal?: {
+        localTime: string;
+        localDate: string;
+        localHour: number;
+        dayOfWeek: string;
+        isWeekend: boolean;
+    };
 }
 
 export async function getSession(channel: string, channelUserId: string): Promise<SessionObject> {
@@ -49,16 +56,28 @@ export async function getSession(channel: string, channelUserId: string): Promis
             session = cached as unknown as SessionObject;
         }
         
-        // Always recalculate temporal and effective city on retrieval to keep it fresh
-        const temporal = calculateTemporal(session.timezone);
-        return {
-            ...session,
-            ...temporal,
-            effectiveCity: getEffectiveCity(session as any)
-        };
+        return enrichSessionWithLocation(session);
     }
 
-    return await buildSessionFromDB(channel, channelUserId);
+    const sessionFromDb = await buildSessionFromDB(channel, channelUserId);
+    return enrichSessionWithLocation(sessionFromDb);
+}
+
+export function enrichSessionWithLocation(session: SessionObject): SessionObject {
+    const effectiveCity = getEffectiveCity(session);
+    const temporal = calculateTemporal(session.timezone);
+
+    session.effectiveCity = effectiveCity;
+    session.temporal = temporal;
+
+    // Actualizamos las variables planas por retrocompatibilidad temporal, aunque se preferirá el objeto temporal.
+    session.localTime = temporal.localTime;
+    session.localDate = temporal.localDate;
+    session.localHour = temporal.localHour;
+    session.dayOfWeek = temporal.dayOfWeek;
+    session.isWeekend = temporal.isWeekend;
+
+    return session;
 }
 
 export async function updateSession(session: SessionObject, updates: Partial<SessionObject>): Promise<SessionObject> {

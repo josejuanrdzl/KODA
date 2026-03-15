@@ -11,13 +11,10 @@ export async function getWeather(userId: string, city?: string): Promise<string>
             return "No tengo el servicio de clima configurado en este momento.";
         }
 
-        // Ideally, we'd fetch the user's city from the DB based on timezone or profile.
-        // For simplicity, extracting city from timezone (e.g., 'America/Monterrey' -> 'Monterrey')
+        // The city is now injected from the SessionObject via module.router.ts
         let targetCity = city;
         if (!targetCity) {
-            // In a real scenario, we'd query db.getUser(userId) and use their saved city/timezone.
-            // We'll mock it for now assuming Monterrey if not provided, or parse it if we had the full user object.
-            targetCity = 'Monterrey'; // Default fallback
+            targetCity = 'Monterrey'; // Default fallback if still undefined
         }
 
         const cacheKey = targetCity.toLowerCase();
