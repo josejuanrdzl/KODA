@@ -25,7 +25,8 @@ import { handleCalendarModule } from '../modules/executive/calendar.handler';
 import { handleSettings } from '../modules/onboarding/settings.handler';
 import { handleTravelLocation } from './handlers/travel.handler';
 
-import { handleOnboarding } from '../modules/onboarding/onboarding.handler';
+import { handleOnboardingStart } from '../modules/onboarding/onboarding.handler';
+import { isFlowActive, continueFlow } from './flow.engine';
 import { redis } from '../redis';
 
 export async function checkModuleAccess(user: any, moduleSlug: string): Promise<boolean> {
@@ -115,36 +116,28 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
         return await connectByUsername(bot, user.id, targetKodaId, user);
     }
 
-    // --- 1. EXCLUSIVE MODE BYPASS ---
-    // If a module holds strict exclusive control over this user's flow
-    if (user.exclusive_mode) {
-        const mode = user.exclusive_mode;
-        console.log(`[Router] User ${user.id} locked in exclusive mode: ${mode}`);
-        
-        switch (mode) {
-            case 'onboarding':
-                return await handleOnboarding(bot, msg, user, options);
-            case 'chat':
-                return await handleDirectMessages(bot, msg, user, options);
-            case 'settings':
-                return await handleSettings(bot, msg, user, options);
-            case 'action_pending':
-                return await handleConnectionAction(bot, msg, user, options);
-            default:
-                // If it's something else not mapped here, maybe let it through or clear it?
-                // we'll pass it to main flow if not known
-                break;
-        }
+    // --- PASO 1: ¿Mensajería directa? ---
+    if (user.mode === 'chat') {
+        return await handleDirectMessages(bot, msg, user, options);
     }
 
-    // --- 2. ENFORCE ONBOARDING ---
+    // --- PASO 2: ¿Flow activo? ---
+    // Maneja onboarding en progreso, settings, confirmations, etc.
+    if (isFlowActive(user)) {
+        return await continueFlow(msg.text || '', user, options);
+    }
+
+    // --- PASO 3: ¿Trigger de cancelación sin flow? ---
+    const CANCEL_TRIGGERS = ['cancelar', 'salir', 'stop', 'cancel', 'exit'];
+    if (CANCEL_TRIGGERS.includes(text)) {
+        return '¿En qué te ayudo?';
+    }
+
+    // --- PASO 3.5: Enforzar Onboarding inicial ---
+    // Si no ha completado el onboarding y no está en flow, lo forzamos a iniciar.
     if (!user.onboarding_complete) {
-        console.log(`[Router] User ${user.id} has not completed onboarding. Enforcing onboarding mode.`);
-        if (user.exclusive_mode !== 'onboarding') {
-            await supabase.from('users').update({ exclusive_mode: 'onboarding' }).eq('id', user.id);
-            user.exclusive_mode = 'onboarding'; // update memory user state
-        }
-        return await handleOnboarding(bot, msg, user, options);
+        console.log(`[Router] User ${user.id} has not completed onboarding. Starting flow.`);
+        return await handleOnboardingStart(user);
     }
 
     // --- 3. ADMIN RESET ---

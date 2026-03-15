@@ -88,7 +88,7 @@ export async function updateSession(session: SessionObject, updates: Partial<Ses
 }
 
 export async function updateSessionAndDB(session: SessionObject, updates: Partial<SessionObject>): Promise<SessionObject> {
-    const { supabase } = db;
+    const { supabase } = db as any;
     
     // Extrahir columnas modificables a DB
     const dbUpdates: any = {};
@@ -148,7 +148,7 @@ export function getEffectiveCity(userOrSession: { travelCity?: string | null, tr
 }
 
 async function buildSessionFromDB(channel: string, channelUserId: string): Promise<SessionObject> {
-    const { supabase } = db;
+    const { supabase } = db as any;
     
     // Select user
     const { data: user, error: userError } = await supabase
@@ -218,7 +218,7 @@ async function buildSessionFromDB(channel: string, channelUserId: string): Promi
 
 // Minimal placeholder for createNewUser, matching current route logic
 async function createNewUser(channel: string, channelUserId: string) {
-    const { supabase } = db;
+    const { supabase } = db as any;
     const newUserData = {
         [`${channel}_id`]: channelUserId,
         plan: 'free',
