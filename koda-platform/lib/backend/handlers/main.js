@@ -182,8 +182,10 @@ async function handleMainFlow(bot, msg, user, options = {}) {
             .reverse()
             .slice(-6);
 
-        // Configurar modelo según intención
-        const targetModel = classifyIntent(userText);
+        // Configurar modelo según intención (Haiku o Sonnet)
+        // KODA v1.0: AI Engine is now selected globally, so we no longer use classifyIntent's model directly.
+        // const targetModel = classifyIntent(userText); 
+        const aiEngine = options.aiEngine;
 
         // Extraer contexto de módulos para el prompt del sistema
         const injectionData = options.injectionData || {};
@@ -200,7 +202,7 @@ async function handleMainFlow(bot, msg, user, options = {}) {
             emotionalTimeline,
             activeHabits,
             disabledModules,
-            targetModel,
+            aiEngine,
             familyContext
         );
 

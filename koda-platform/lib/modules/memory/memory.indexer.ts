@@ -1,9 +1,5 @@
 const { supabase } = require('../../backend/services/supabase') as any;
-const { Anthropic } = require('@anthropic-ai/sdk');
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const { simpleGenerate } = require('../../backend/services/claude');
 
 /**
  * Llama a Haiku para analizar la conversación e indexar de forma asíncrona.
@@ -42,16 +38,18 @@ NO indexar si el intercambio es solo:
 - Comandos de navegación (ver mis chats, salir, etc.)
 - Respuestas de una sola palabra`;
 
-        const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-5',
-            max_tokens: 500,
-            system: systemPrompt,
-            messages: [
-                { role: 'user', content: `Usuario dice: "${userMessage}"\n\nKODA responde: "${assistantResponse}"` }
-            ]
-        });
-
-        const content = response.content[0].text.trim();
+        let content = '';
+        try {
+            content = await simpleGenerate(
+                systemPrompt,
+                `Usuario dice: "${userMessage}"\n\nKODA responde: "${assistantResponse}"`,
+                { ...activeContextParams, maxTokens: 500 }
+            );
+            content = content.trim();
+        } catch (e) {
+            console.error('[Memory Indexer] Error generating extraction:', e);
+            return;
+        }
         if (content === 'null' || !content) return;
 
         let parsed;
@@ -102,7 +100,7 @@ NO indexar si el intercambio es solo:
 /**
  * Indexador de Mensajes Directos entre usuarios (Chat KODA)
  */
-export async function indexDirectMessage(fromUserId: string, toUserId: string, content: string, messageId: string, fromUsername: string, toUsername: string): Promise<void> {
+export async function indexDirectMessage(fromUserId: string, toUserId: string, content: string, messageId: string, fromUsername: string, toUsername: string, options: any = null): Promise<void> {
      try {
          if (!content || content.length < 10) return;
          
@@ -125,16 +123,18 @@ Devuelve SOLO JSON con esta estructura exacta o null:
 
 NO indexar saludos simples ni mensajes de una palabra.`;
          
-         const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-5',
-            max_tokens: 300,
-            system: systemPrompt,
-            messages: [
-                { role: 'user', content: `Mensaje: "${content}"` }
-            ]
-         });
-         
-         const textContent = response.content[0].text.trim();
+         let textContent = '';
+         try {
+             textContent = await simpleGenerate(
+                systemPrompt,
+                `Mensaje: "${content}"`,
+                { ...options, maxTokens: 300 }
+             );
+             textContent = textContent.trim();
+         } catch (e) {
+             console.error('[Memory Indexer] Error generating standalone extraction:', e);
+             return;
+         }
          if (textContent === 'null') return;
          
          let parsed;

@@ -62,7 +62,7 @@ export async function handleDirectMessages(bot: any, msg: any, user: any, option
             const fromUsername = user.koda_id || 'Usuario';
             const toUsername = recipientData ? (recipientData.koda_id || 'Usuario') : 'Usuario';
 
-            indexDirectMessage(user.id, recipientId, text, message.id, fromUsername, toUsername).catch(e => {
+            indexDirectMessage(user.id, recipientId, text, message.id, fromUsername, toUsername, options).catch(e => {
                 console.error('[Memory] Error background indexing DM:', e);
             });
 

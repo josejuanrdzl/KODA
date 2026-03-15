@@ -1,14 +1,10 @@
 const db = require('../../backend/services/supabase');
 const { supabase } = db;
-const { Anthropic } = require('@anthropic-ai/sdk');
+const { simpleGenerate } = require('../../backend/services/claude');
 import { getGoogleToken, requireGmailConnector } from './google.connector';
 import { createViewToken, createActionToken } from '../../portal/portal.tokens';
 
 const appUrl = process.env.FLY_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-
-const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 export async function handleGmailModule(bot: any, msg: any, user: any, options: any): Promise<boolean> {
     const text = msg.text?.trim() || '';
@@ -62,16 +58,12 @@ export async function handleGmailModule(bot: any, msg: any, user: any, options: 
 [{ "id": "...", "from_name": "...", "subject": "...", "date": "...", "urgency": "urgent|important|normal|skip", "one_line": "resumen de una línea en español" }]
 urgent = requiere acción hoy, important = requiere acción pronto, normal = informativo, skip = newsletters/marketing/notificaciones`;
 
-            const aiResponse = await anthropic.messages.create({
-                model: 'claude-sonnet-4-5',
-                max_tokens: 1000,
-                system: systemPrompt,
-                messages: [
-                    { role: 'user', content: JSON.stringify(simplifiedMessages) }
-                ]
-            });
-
-            const aiText = aiResponse.content[0].text;
+            const aiText = await simpleGenerate(
+                options.aiEngine,
+                systemPrompt,
+                JSON.stringify(simplifiedMessages),
+                1000
+            );
             const jsonStr = aiText.substring(aiText.indexOf('['), aiText.lastIndexOf(']') + 1);
             const classifiedEmails = JSON.parse(jsonStr);
 
@@ -251,19 +243,15 @@ urgent = requiere acción hoy, important = requiere acción pronto, normal = inf
 
          try {
              // Query Sonnet for drafting
-             const draftRes = await anthropic.messages.create({
-                 model: 'claude-sonnet-4-5',
-                 max_tokens: 300,
-                 system: `Redacta una respuesta profesional a un email. 
+             const draftText = await simpleGenerate(
+                 options.aiEngine,
+                 `Redacta una respuesta profesional a un email. 
 Tono: profesional pero coloquial (como lo haría un ejecutivo moderno).
 Idioma: español.
 Máximo 150 palabras. Solo el cuerpo del correo, sin asunto, sin firma (solo tu nombre o el nombre del usuario si se deduce).`,
-                 messages: [
-                     { role: 'user', content: `Email Original De: ${currentEmail.from}\nAsunto: ${currentEmail.subject}\n\nInstrucción de respuesta: ${instructions}` }
-                 ]
-             });
-
-             const draftText = draftRes.content[0].text;
+                 `Email Original De: ${currentEmail.from}\nAsunto: ${currentEmail.subject}\n\nInstrucción de respuesta: ${instructions}`,
+                 300
+             );
 
              const cleanFromMatch = currentEmail.from.match(/^([^<]+)/);
              const cleanFrom = cleanFromMatch ? cleanFromMatch[1].trim() : currentEmail.from;
@@ -299,13 +287,13 @@ Máximo 150 palabras. Solo el cuerpo del correo, sin asunto, sin firma (solo tu 
          const systemPrompt = `Convierte esta intención de usuario en una query de Gmail (e.g. from:martha, subject:presupuesto, after:2024/01/01). Solo devuelve la query final como texto plano sin comillas. Intención: "busca ${queryObj}"`;
          
          try {
-             const queryRes = await anthropic.messages.create({
-                 model: 'claude-sonnet-4-5',
-                 max_tokens: 50,
-                 system: systemPrompt,
-                 messages: [ { role: 'user', content: "Genera la query." } ]
-             });
-             const gmailQuery = queryRes.content[0].text.trim();
+             const queryResText = await simpleGenerate(
+                 options.aiEngine,
+                 systemPrompt,
+                 "Genera la query.",
+                 50
+             );
+             const gmailQuery = queryResText.trim();
              
              await bot.sendMessage(user.id, `Buscando: ${gmailQuery}`, options);
 

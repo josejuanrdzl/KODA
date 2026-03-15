@@ -1,5 +1,7 @@
 # KODA Project Directives
 
+**🚨 LECTURA OBLIGATORIA:** Antes de cualquier desarrollo, debes consultar la [Biblia de Arquitectura KODA v2.0](file:///Users/joserodriguez/KODA/koda-platform/KODA_ARCHITECTURE.md). **NUNCA VIOLAR ESTAS 15 REGLAS DE ORO.**
+
 This document outlines the core operational rules for the KODA project. All contributors and agents must adhere to these directives to ensure system stability and consistency.
 
 ## 1. Hosting & Infrastructure

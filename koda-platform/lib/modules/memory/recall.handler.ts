@@ -1,9 +1,5 @@
 const { supabase } = require('../../backend/services/supabase') as any;
-const { Anthropic } = require('@anthropic-ai/sdk');
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const { simpleGenerate } = require('../../backend/services/claude');
 
 export async function handleRecallIntent(bot: any, msg: any, user: any, options: any): Promise<boolean> {
     const text = msg.text?.trim() || '';
@@ -63,16 +59,13 @@ ${formattedMemories}
 `;
 
         try {
-            const response = await anthropic.messages.create({
-                model: 'claude-sonnet-4-5',
-                max_tokens: 500,
-                system: systemPrompt,
-                messages: [
-                    { role: 'user', content: `Pregunta original: "${text}"` }
-                ]
-            });
+            const responseText = await simpleGenerate(
+                systemPrompt,
+                `Pregunta original: "${text}"`,
+                { ...options, maxTokens: 500 }
+            );
 
-            await bot.sendMessage(user.id, response.content[0].text, options);
+            await bot.sendMessage(user.id, responseText, options);
             return true;
 
         } catch (e: any) {

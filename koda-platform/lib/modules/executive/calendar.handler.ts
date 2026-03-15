@@ -1,12 +1,8 @@
 const db = require('../../backend/services/supabase');
 const { supabase } = db;
-const { Anthropic } = require('@anthropic-ai/sdk');
+const { simpleGenerate } = require('../../backend/services/claude');
 import { getGoogleToken, requireGmailConnector } from './google.connector';
 import { createViewToken, createActionToken } from '../../portal/portal.tokens';
-
-const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 export async function handleCalendarModule(bot: any, msg: any, user: any, options: any): Promise<boolean> {
     const text = msg.text?.trim() || '';
@@ -99,13 +95,11 @@ Si no se indica la fecha explícita, asume que es hoy (${new Date().toISOString(
          await bot.sendMessage(user.id, "Procesando opciones para tu evento...", options);
 
          try {
-             const extractRes = await anthropic.messages.create({
-                 model: 'claude-sonnet-4-5',
-                 max_tokens: 300,
-                 system: systemPrompt,
-                 messages: [ { role: 'user', content: text } ]
-             });
-             const extractText = extractRes.content[0].text;
+             const extractText = await simpleGenerate(
+                 systemPrompt,
+                 text,
+                 { ...options, maxTokens: 300 }
+             );
              const jsonStr = extractText.substring(extractText.indexOf('{'), extractText.lastIndexOf('}') + 1);
              const evtData = JSON.parse(jsonStr);
 

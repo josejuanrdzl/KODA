@@ -7,6 +7,7 @@ const db = require('@/lib/backend/services/supabase');
 import { routeMessage } from '@/lib/backend/module.router';
 import { indexConversation } from '@/lib/modules/memory/memory.indexer';
 import { handleOnboarding } from '@/lib/modules/onboarding/onboarding.handler';
+import { selectAIEngine } from '@/lib/backend/ai.selector';
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 export async function POST(request: Request) {
@@ -38,7 +39,10 @@ export async function POST(request: Request) {
         const user = await getSessionUser(telegramId, currentUsername, msg.from.first_name);
 
         // We can pass a flag inside `user` or as a 4th argument to indicate we want the generated text returned
-        const options = { returnReply: true };
+        const options: any = { returnReply: true };
+
+        // Select the AI Engine for this user based on BYOK, plan, or fallbacks
+        options.aiEngine = await selectAIEngine(user.id);
 
         // --- ONBOARDING INTERCEPTOR ---
         if (user.onboarding_complete === false) {

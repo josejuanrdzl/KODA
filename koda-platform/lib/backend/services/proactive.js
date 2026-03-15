@@ -6,6 +6,7 @@ const { sendChannelMessage } = require('../utils/messenger');
 const { getWeather } = require('../handlers/weather.handler');
 const { getExchangeRates } = require('../handlers/fx-rates.handler');
 const { checkModuleAccess } = require('../module.router');
+const { selectAIEngine } = require('../ai.selector');
 
 async function getLastProactiveSent(user_id, type) {
     const { data, error } = await db.supabase
@@ -354,6 +355,7 @@ function startCron(bot) {
                         ]);
 
                         const chatHistory = [...recentMessages].reverse();
+                        const aiEngine = await selectAIEngine(user.id);
 
                         const aiResponse = await claude.generateResponse(
                             user,
@@ -363,7 +365,11 @@ function startCron(bot) {
                             recentNotes,
                             activeReminders,
                             recentJournals,
-                            emotionalTimeline
+                            emotionalTimeline,
+                            [], // activeHabits
+                            [], // disabledModules
+                            aiEngine,
+                            null // familyContext
                         );
 
                         const { parseActions } = require('../utils/actionParser');
@@ -419,6 +425,16 @@ function startCron(bot) {
             }
         } catch (error) {
             console.error('[Cron] Error scheduling memory cleanup:', error);
+        }
+    });
+
+    // 5-minute cron for AI Engine Health Check
+    cron.schedule('*/5 * * * *', async () => {
+        try {
+            const { healthCheckEngines } = require('../ai.selector');
+            await healthCheckEngines();
+        } catch (error) {
+            console.error('[Cron] Error en el AI Health Check:', error);
         }
     });
 
