@@ -149,18 +149,20 @@ export function getEffectiveCity(userOrSession: { travelCity?: string | null, tr
 
 async function buildSessionFromDB(channel: string, channelUserId: string): Promise<SessionObject> {
     const { supabase } = db as any;
-    
-    // Select user
+
+    // Select user — maybeSingle() retorna null sin error si no existe
     const { data: user, error: userError } = await supabase
         .from('users')
         .select('id, name, plan, plan_status, city, country, lat, lng, timezone, travel_city, travel_until, exclusive_mode, exclusive_data, preferred_channel, koda_id, onboarding_complete')
         .eq(`${channel}_id`, channelUserId)
-        .single();
-        
+        .maybeSingle();
+
     let finalUser = user;
 
-    if (userError || !user) {
-        // createNewUser
+    if (!user) {
+        if (userError) {
+            console.error(`[Session] Error fetching user ${channel}:${channelUserId}:`, userError.message);
+        }
         finalUser = await createNewUser(channel, channelUserId);
     }
 
@@ -216,22 +218,35 @@ async function buildSessionFromDB(channel: string, channelUserId: string): Promi
     return session;
 }
 
-// Minimal placeholder for createNewUser, matching current route logic
 async function createNewUser(channel: string, channelUserId: string) {
     const { supabase } = db as any;
+    const columnId = `${channel}_id`;
     const newUserData = {
-        [`${channel}_id`]: channelUserId,
+        [columnId]: channelUserId,
         plan: 'free',
         timezone: 'America/Chihuahua',
         city: 'Chihuahua',
         country: 'MX'
     };
-    
-    // In actual implementation, we'd gather name from channel wrapper if possible
-    const { data, error } = await supabase.from('users').insert(newUserData).select().single();
+
+    // Upsert para evitar duplicate key en race conditions
+    const { data, error } = await supabase
+        .from('users')
+        .upsert(newUserData, { onConflict: columnId, ignoreDuplicates: false })
+        .select()
+        .single();
+
     if (error) {
-        console.error('Error creating user:', error);
-        throw error;
+        console.error(`[Session] Upsert failed for ${channel}:${channelUserId}:`, error.message);
+        // Retry: si el upsert falló, intentar SELECT directo
+        const { data: retryUser } = await supabase
+            .from('users')
+            .select('*')
+            .eq(columnId, channelUserId)
+            .maybeSingle();
+
+        if (retryUser) return retryUser;
+        throw new Error(`No se pudo obtener ni crear usuario para ${channel}:${channelUserId}`);
     }
     return data;
 }
