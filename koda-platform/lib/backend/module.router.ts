@@ -41,7 +41,10 @@ export function hasModuleAccess(userPlan: string, requiredPlan: string): boolean
 
 export async function loadCommands(): Promise<any[]> {
     const cached = await redis.get('koda:commands:all');
-    if (cached) return JSON.parse(cached as string);
+    if (cached) {
+        if (typeof cached === 'string') return JSON.parse(cached);
+        return cached as any[];
+    }
 
     const { data: commands, error } = await supabase
         .from('koda_commands')
