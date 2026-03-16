@@ -13,6 +13,10 @@ INSERT INTO koda_commands
 VALUES
     ('exact', 'clima', 'weather', 'get_weather', 10, 'free', true),
     ('exact', 'dólar', 'fx-rates', 'get_rate', 10, 'free', true),
+    ('exact', 'dolar', 'fx-rates', 'get_rate', 10, 'free', true),
+    ('exact', 'tipo de cambio', 'fx-rates', 'get_rate', 10, 'free', true),
+    ('exact', 'usd', 'fx-rates', 'get_rate', 10, 'free', true),
+    ('exact', 'usd/mxn', 'fx-rates', 'get_rate', 10, 'free', true),
     ('exact', 'habitos', 'habits', 'list_habits', 10, 'free', true),
     ('exact', 'hábitos', 'habits', 'list_habits', 10, 'free', true),
     ('exact', 'recordatorios', 'reminders', 'list_reminders', 10, 'free', true),

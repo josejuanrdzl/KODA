@@ -4,7 +4,7 @@ const { handleCommand } = require('./handlers/commands');
 const { handleMainFlow } = require('./handlers/main');
 
 // Import direct handlers
-import { getWeather } from './handlers/weather.handler';
+import { execute as handleWeather } from '../modules/lifestyle/weather.handler';
 import { getExchangeRates } from './handlers/fx-rates.handler';
 import { searchSpotify } from './handlers/spotify.handler';
 import { fetchSportsData } from './handlers/sports.handler';
@@ -58,10 +58,19 @@ export async function loadCommands(): Promise<any[]> {
     return commands || [];
 }
 
+
+export function normalize(text: string): string {
+    return text
+        .toLowerCase()
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+}
+
 export function matchCommand(message: string, command: any): boolean {
-    const msg = message.toLowerCase().trim();
+    const msg = normalize(message);
     if (!command.trigger_value) return false;
-    const val = command.trigger_value.toLowerCase();
+    const val = normalize(command.trigger_value);
 
     switch (command.trigger_type) {
         case 'exact':
@@ -184,6 +193,7 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
                 const mockOpts = { ...options, location, activeModule: slug };
 
                 // Handlers interactivos
+                if (slug === 'weather') return { response: (await handleWeather(envelope)).response };
                 if (slug === 'settings') return { response: await handleSettings(bot, mockMsg, session, mockOpts) };
                 if (slug === 'travel') return { response: await handleTravelLocation(mockMsg, session, intent, mockOpts) };
                 if (slug === 'messaging') return { response: await handleDirectMessages(bot, mockMsg, session, mockOpts) };
@@ -197,11 +207,7 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
                 // Inyectores de contexto
                 let injectedData = null;
                 try {
-                    if (slug === 'weather') {
-                        const match = mockMsg.text.match(/en\s+([a-zA-Z\s]+)(\?|$)/i);
-                        const city = match ? match[1].trim() : (mockOpts?.location?.city || undefined);
-                        injectedData = await getWeather(userId, city);
-                    } else if (slug === 'fx-rates') {
+                    if (slug === 'fx-rates') {
                         injectedData = await getExchangeRates('MXN');
                     } else if (slug === 'spotify') {
                         injectedData = await searchSpotify(mockMsg.text);

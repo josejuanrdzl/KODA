@@ -1,10 +1,10 @@
-require('dotenv').config({ path: '.env.local' });
+require('dotenv').config({ path: '.env' });
 const { createClient } = require('@supabase/supabase-js');
 const { routeMessage, loadCommands, invalidateCommandsCache } = require('../lib/backend/module.router');
 const { getSession } = require('../lib/backend/session.manager');
 
 const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
@@ -66,11 +66,14 @@ async function testCommand(text, plan = 'free') {
 
 async function run() {
     await setupDB();
-    await invalidateCommandsCache(); // Limpiar cache para cargar nuevos
+    // await invalidateCommandsCache(); // Limpiar cache para cargar nuevos
+
     
     console.log("\n== 2. Probando comandos básicos ==");
     await testCommand('clima');
+    await testCommand('dolar');
     await testCommand('dólar');
+    await testCommand('habitos');
     await testCommand('hábitos');
     await testCommand('ayuda');
     await testCommand('configuración');
