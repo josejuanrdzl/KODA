@@ -29,77 +29,95 @@ import { handleOnboardingStart } from '../modules/onboarding/onboarding.handler'
 import { isFlowActive, continueFlow } from './flow.engine';
 import { redis } from '../redis';
 
-export async function checkModuleAccess(user: any, moduleSlug: string): Promise<boolean> {
-    if (!user || !user.tenant_id || !user.plan) {
-        return false;
+export function hasModuleAccess(userPlan: string, requiredPlan: string): boolean {
+    const PLAN_LEVELS: { [key: string]: number } = {
+        'free': 0, 'lite': 1, 'lifestyle': 2,
+        'executive': 3, 'business': 4
+    };
+    const uPlan = userPlan || 'free';
+    const reqPlan = requiredPlan || 'free';
+    return (PLAN_LEVELS[uPlan] || 0) >= (PLAN_LEVELS[reqPlan] || 0);
+}
+
+export async function loadCommands(): Promise<any[]> {
+    const cached = await redis.get('koda:commands:all');
+    if (cached) return JSON.parse(cached as string);
+
+    const { data: commands, error } = await supabase
+        .from('koda_commands')
+        .select('id, trigger_type, trigger_value, module_slug, intent, priority, plan_required, is_active')
+        .eq('is_active', true)
+        .order('priority', { ascending: true });
+
+    if (error) {
+        console.error('[loadCommands] Error loading commands:', error);
+        return [];
     }
 
-    try {
-        const { data: tenantModule, error: tenantErr } = await supabase
-            .from('tenant_modules')
-            .select('enabled_at, disabled_at')
-            .eq('tenant_id', user.tenant_id)
-            .eq('module_slug', moduleSlug)
-            .maybeSingle();
+    await redis.setex('koda:commands:all', 300, JSON.stringify(commands || []));
+    return commands || [];
+}
 
-        if (tenantModule) {
-            if (tenantModule.enabled_at && !tenantModule.disabled_at) return true;
-            if (tenantModule.disabled_at) return false;
-        }
+export function matchCommand(message: string, command: any): boolean {
+    const msg = message.toLowerCase().trim();
+    if (!command.trigger_value) return false;
+    const val = command.trigger_value.toLowerCase();
 
-        let planSlug = user.plan;
-        if (user.tenant_id) {
-            const { data: tenant } = await supabase.from('tenants').select('plan').eq('id', user.tenant_id).single();
-            if (tenant && tenant.plan) planSlug = tenant.plan;
-        }
-
-        const { data: planModule, error: planErr } = await supabase
-            .from('plan_modules')
-            .select('is_included')
-            .eq('plan_slug', planSlug)
-            .eq('module_slug', moduleSlug)
-            .single();
-
-        if (planErr && planErr.code === 'PGRST116') return false;
-        
-        return planModule?.is_included === true;
-    } catch (err) {
-        console.error(`[checkModuleAccess] Excepción verificando acceso:`, err);
-        return false;
+    switch (command.trigger_type) {
+        case 'exact':
+            return msg === val;
+        case 'contains':
+            return msg.includes(val);
+        case 'startsWith':
+            return msg.startsWith(val);
+        case 'regex':
+            try {
+                return new RegExp(command.trigger_value, 'i').test(message);
+            } catch (e) {
+                console.error('Invalid regex in command', command);
+                return false;
+            }
+        default:
+            return false;
     }
 }
 
-async function getKodaCommands() {
-    try {
-        let commandsStr = await redis.get('koda:commands:active');
-        if (!commandsStr) {
-            const { data } = await supabase
-                .from('koda_commands')
-                .select('*')
-                .eq('is_active', true)
-                .order('priority', { ascending: false }); // smaller priority executes first? The db might use ascending. Usually priority 1 > priority 2 if it's descending order? Let's use ascending. Or wait, original plan: prioritize by priority order. Actually we just iterate them as returned.
-                // Assuming priority is ordered higher first or whatever is fetched. Let's do ascending for a 1=highest priority logic.
-            if (data && data.length > 0) {
-                await redis.set('koda:commands:active', JSON.stringify(data), { ex: 300 });
-                return data;
-            }
-            return [];
+export async function findMatchingCommand(message: string, session: any): Promise<any | null> {
+    const commands = await loadCommands();
+
+    for (const command of commands) {
+        if (!command.is_active) continue;
+        
+        // Verificar acceso al plan
+        if (!hasModuleAccess(session.plan, command.plan_required)) {
+            continue;
         }
-        return typeof commandsStr === 'string' ? JSON.parse(commandsStr) : commandsStr;
-    } catch (e) {
-        console.error('Error fetching commands', e);
-        // Fallback to db on redis failure
-        const { data } = await supabase.from('koda_commands').select('*').eq('is_active', true).order('priority', { ascending: true });
-        return data || [];
+
+        if (matchCommand(message, command)) {
+            return command; // primer match gana
+        }
     }
+
+    return null; // ningún match
+}
+
+export async function invalidateCommandsCache(): Promise<void> {
+    await redis.del('koda:commands:all');
 }
 
 export async function routeMessage(bot: any, msg: any, user: any, options: any): Promise<any> {
-    const text = msg.text?.toLowerCase().trim() || '';
+    const session = user; // BCF-02 alias
+    const message = msg.text || '';
+
+    // Normalizar: quitar slash, trim, lowercase
+    let normalizedMessage = message.trim();
+    if (normalizedMessage.startsWith('/')) {
+        normalizedMessage = normalizedMessage.slice(1);
+    }
+    normalizedMessage = normalizedMessage.toLowerCase();
 
     // --- DIRECT CONNECTION INTENT INTERCEPTION ---
-    const msgLower = text;
-    const usernameMatch = text.match(/@([a-z0-9_]+)/);
+    const usernameMatch = normalizedMessage.match(/@([a-z0-9_]+)/);
     
     const connectionTriggers = [
         'conectar con', 'contactar con', 'hablar con',
@@ -108,12 +126,12 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
     ];
     
     const hasConnectionTrigger = connectionTriggers.some(
-        t => msgLower.includes(t)
+        t => normalizedMessage.includes(t)
     );
 
     if (usernameMatch && hasConnectionTrigger) {
-        const targetKodaId = '@' + usernameMatch[1].toLowerCase();
-        return await connectByUsername(bot, user.id, targetKodaId, user);
+        const targetKodaId = '@' + usernameMatch[1];
+        return await connectByUsername(bot, session.id, targetKodaId, session);
     }
 
     // --- PASO 1: ¿Mensajería directa? ---
@@ -129,7 +147,7 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
 
     // --- PASO 3: ¿Trigger de cancelación sin flow? ---
     const CANCEL_TRIGGERS = ['cancelar', 'salir', 'stop', 'cancel', 'exit'];
-    if (CANCEL_TRIGGERS.includes(text)) {
+    if (CANCEL_TRIGGERS.includes(normalizedMessage)) {
         return '¿En qué te ayudo?';
     }
 
@@ -141,8 +159,8 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
     }
 
     // --- 3. ADMIN RESET ---
-    if (user.role === 'admin' && text.startsWith('/reset_onboarding')) {
-        const targetTelegramId = text.split(' ')[1];
+    if (user.role === 'admin' && message.startsWith('/reset_onboarding')) {
+        const targetTelegramId = message.split(' ')[1];
         if (!targetTelegramId) return "Uso: /reset_onboarding [telegram_id]";
         const { error } = await supabase.from('users').update({ 
             onboarding_complete: false, 
@@ -151,121 +169,131 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
         }).eq('telegram_id', targetTelegramId);
         
         if (error) return `Error al resetear onboarding: ${error.message}`;
-        return `✅ Onboarding reseteado para el usuario ${targetTelegramId}.`;
+        return `✅ Onboarding reseteado para el usuario ${targetTelegramId}`;
     }
 
-    // --- 4. DB-DRIVEN COMMAND LOAD & EXECUTION ---
-    const commands = await getKodaCommands();
-    let matchedCommand = null;
+    // --- PASO 4: CommandRegistry desde BD ---
+    const matchedCommand = await findMatchingCommand(normalizedMessage, session);
 
-    for (const cmd of commands) {
-        let isMatch = false;
-        
-        const triggerText = cmd.trigger_pattern || cmd.trigger_value;
-        if (!triggerText) continue;
-        const pattern = triggerText.toLowerCase();
+    // Wrapper local para emular getModuleBySlug y execute()
+    function getModuleBySlug(slug: string) {
+        return {
+            execute: async (envelope: any) => {
+                const { userId, intent, location } = envelope;
+                const mockMsg = { text: envelope.message };
+                const mockOpts = { ...options, location, activeModule: slug };
 
-        if (cmd.trigger_type === 'exact' && text === pattern) {
-            isMatch = true;
-        } else if (cmd.trigger_type === 'contains' && text.includes(pattern)) {
-            isMatch = true;
-        } else if (cmd.trigger_type === 'startsWith' && text.startsWith(pattern)) {
-            isMatch = true;
-        } else if (cmd.trigger_type === 'regex') {
-            try {
-                const regex = new RegExp(cmd.trigger_pattern, 'i');
-                if (regex.test(text)) isMatch = true;
-            } catch(e) {
-                console.error('Invalid regex in command', cmd);
+                // Handlers interactivos
+                if (slug === 'settings') return { response: await handleSettings(bot, mockMsg, session, mockOpts) };
+                if (slug === 'travel') return { response: await handleTravelLocation(mockMsg, session, intent, mockOpts) };
+                if (slug === 'messaging') return { response: await handleDirectMessages(bot, mockMsg, session, mockOpts) };
+                if (slug === 'connections') return { response: await handleConnections(bot, mockMsg, session, mockOpts) };
+                if (slug === 'gmail') return { response: await handleGmailModule(bot, mockMsg, session, mockOpts) };
+                if (slug === 'calendar') return { response: await handleCalendarModule(bot, mockMsg, session, mockOpts) };
+                if (slug === 'core' && intent === 'show_commands') {
+                    return { response: "Comandos disponibles:\n- Clima\n- Dólar\n- Hábitos\n- Configuración\n- Ayuda" };
+                }
+
+                // Inyectores de contexto
+                let injectedData = null;
+                try {
+                    if (slug === 'weather') {
+                        const match = mockMsg.text.match(/en\s+([a-zA-Z\s]+)(\?|$)/i);
+                        const city = match ? match[1].trim() : (mockOpts?.location?.city || undefined);
+                        injectedData = await getWeather(userId, city);
+                    } else if (slug === 'fx-rates') {
+                        injectedData = await getExchangeRates('MXN');
+                    } else if (slug === 'spotify') {
+                        injectedData = await searchSpotify(mockMsg.text);
+                    } else if (slug === 'sports') {
+                        const match = mockMsg.text.match(/(nfl|nba|mlb|nhl|f1|liga mx|premier league|la liga|champions|europa league|mls)/i);
+                        let league = 'ligamx';
+                        if (match) {
+                            league = match[1].toLowerCase().replace(/\s+/g, '');
+                            if (league === 'champions') league = 'championsleague';
+                        }
+                        injectedData = await fetchSportsData(league);
+                    } else if (slug === 'luna') {
+                        injectedData = await processLunaContext(userId);
+                    } else if (slug === 'shopping') {
+                        const list = await db.getOrCreateDefaultShoppingList(userId);
+                        const items = await db.getShoppingItems(list.id);
+                        const pending = items.filter((i: any) => !i.is_checked);
+                        if (pending.length === 0) injectedData = "La lista de compras está actualmente vacía.";
+                        else injectedData = "Lista de compras pendiente:\n" + pending.map((i: any) => `- ${i.name} ${i.quantity ? `(${i.quantity})` : ''}`).join('\n');
+                    } else if (slug === 'familia') {
+                        injectedData = await getFamilyContext(userId);
+                    } else if (slug === 'habits' || slug === 'reminders') {
+                        // Dejamos que pase a handleMainFlow como recordatorio/hábito genérico
+                        injectedData = `[El usuario está solicitando información sobre sus ${slug}]`; 
+                    }
+                } catch (e) {
+                    console.error(`[Router] Error executing context fetcher for ${slug}:`, e);
+                }
+
+                // Si produjo datos inyectables, resolvemos el comando a través de Claude
+                if (injectedData) {
+                    mockMsg.text = `\n[SISTEMA - DATOS DE MÓDULO ${slug.toUpperCase()}]:\n${injectedData}\n\n[MENSAJE DEL USUARIO]:\n${mockMsg.text}`;
+                    const finalResponse = await handleMainFlow(bot, mockMsg, session, mockOpts);
+                    return { response: finalResponse };
+                }
+
+                return { response: "Módulo no implementado o sin respuesta." };
             }
-        }
-
-        // Connection intent interception logic explicitly mapped via command
-        // i.e., @username connections should map via regex in the DB to 'connections' module.
-        // If they want older connections logic too, it can be regex or just handled in db matching.
-        // e.g. Regex: /@[a-z0-9_]+/ with contains 'conectar'. 
-        // We will assume that the DB handles those triggers now, but will safely fallback.
-
-        if (isMatch) {
-            // Check module access
-            if (await checkModuleAccess(user, cmd.target_module)) {
-                matchedCommand = cmd;
-                break;
-            } else {
-                console.log(`[Router] Command matched ${cmd.target_module} but user lacks access.`);
-            }
-        }
+        };
     }
 
     if (matchedCommand) {
-        console.log(`[Router] Executing command for module: ${matchedCommand.target_module}`);
-        const module = matchedCommand.target_module;
+        const moduleHandler = getModuleBySlug(matchedCommand.module_slug);
 
-        // Interactive Handlers
-        if (module === 'settings') return await handleSettings(bot, msg, user, options);
-        if (module === 'travel') return await handleTravelLocation(msg, user, matchedCommand.intent, options);
-        if (module === 'messaging') return await handleDirectMessages(bot, msg, user, options);
-        if (module === 'connections') return await handleConnections(bot, msg, user, options);
-        if (module === 'gmail') return await handleGmailModule(bot, msg, user, options);
-        if (module === 'calendar') return await handleCalendarModule(bot, msg, user, options);
+        if (moduleHandler) {
+            const { updateSession } = require('./session.manager'); // Lazy load to avoid circular
+            
+            const result = await moduleHandler.execute({
+                userId:    session.id, // En session manager es id
+                userPlan:  session.plan,
+                intent:    matchedCommand.intent,
+                message:   message, // El original
+                normalizedMsg: normalizedMessage,
+                location:  { city: session.effectiveCity || session.city,
+                             country: session.country,
+                             lat: session.lat,
+                             lng: session.lng },
+                temporal:  session.temporal,
+                aiEngine:  options.aiEngine,  // del Ítem 1
+                context: {
+                    flowData:        session.flowData,
+                    memoryFragments: [],  // BCF-07 lo llenará en Ítem 6
+                    userName:        session.first_name,
+                }
+            });
 
-        // Read-only info fetchers (Context injectors)
-        let injectedData = null;
-        try {
-            if (module === 'weather') {
-                 const match = text.match(/en\s+([a-zA-Z\s]+)(\?|$)/i);
-                 const city = match ? match[1].trim() : (options?.location?.city || undefined);
-                 injectedData = await getWeather(user.id, city);
-            } else if (module === 'fx-rates') {
-                 injectedData = await getExchangeRates('MXN');
-            } else if (module === 'spotify') {
-                 injectedData = await searchSpotify(text);
-            } else if (module === 'sports') {
-                 const match = text.match(/(nfl|nba|mlb|nhl|f1|liga mx|premier league|la liga|champions|europa league|mls)/i);
-                 let league = 'ligamx';
-                 if (match) {
-                     league = match[1].toLowerCase().replace(/\s+/g, '');
-                     if (league === 'champions') league = 'championsleague';
-                 }
-                 injectedData = await fetchSportsData(league);
-            } else if (module === 'luna') {
-                 injectedData = await processLunaContext(user.id);
-            } else if (module === 'shopping') {
-                 const list = await db.getOrCreateDefaultShoppingList(user.id);
-                 const items = await db.getShoppingItems(list.id);
-                 const pending = items.filter((i: any) => !i.is_checked);
-                 if (pending.length === 0) injectedData = "La lista de compras está actualmente vacía.";
-                 else injectedData = "Lista de compras pendiente actual:\n" + pending.map((i: any) => `- ${i.name} ${i.quantity ? `(${i.quantity})` : ''}`).join('\n');
-            } else if (module === 'familia') {
-                 injectedData = await getFamilyContext(user.id);
-            }
+            // Actualizar session al final
+            await updateSession(session, {
+                lastModuleSlug: matchedCommand.module_slug,
+                lastMessageAt:  Date.now(),
+                conversationTurn: (session.conversationTurn || 0) + 1
+            });
 
-            if (injectedData) {
-                // Prepend context for main flow
-                msg.text = `\n[SISTEMA - DATOS DE MÓDULO ${module.toUpperCase()}]:\n${injectedData}\n\n[MENSAJE DEL USUARIO]:\n${msg.text}`;
-            }
-        } catch (e) {
-            console.error(`[Router] Error executing context fetcher for ${module}:`, e);
+            return result.response;
         }
-        
-        // If it was a context module, we don't return here, we let it fall through to main flow with injected text
-        // UNLESS the command is defined as 'static' in the future, but currently those require falling back to main flow or specific handlers
     }
 
     // --- older connection handler bypass in case DB is missing the command temporally ---
     const connectionRegex = /@[a-z0-9_]+/;
     const connectionKeywords = ["conectar", "contactar", "hablar con", "mensaje a", "escribir a", "chat con"];
-    if (!matchedCommand && connectionRegex.test(text) && connectionKeywords.some(keyword => text.includes(keyword))) {
-        return await handleConnections(bot, msg, user, options);
+    if (!matchedCommand && connectionRegex.test(normalizedMessage) && connectionKeywords.some(keyword => normalizedMessage.includes(keyword))) {
+        return await handleConnections(bot, msg, session, options);
     }
 
-    // --- 5. FALLBACK MAIN CONVERSATIONAL / INTENT FLOW ---
+    // --- PASO 5: Claude conversacional ---
+    // (sin historial — solo mensaje actual)
     if (matchedCommand) {
         options.activeModule = matchedCommand.target_module;
     }
-    return await handleMainFlow(bot, msg, user, options);
+    return await handleMainFlow(bot, msg, session, options);
 }
 
-// Clean up performContextInjection to appease old imports if any outside reference it, just export empty
+// Clean up performContextInjection to appease old imports if any
 export async function performContextInjection(msg: any, user: any): Promise<string> { return ""; }
 export const contextInjectors = {};
