@@ -110,14 +110,7 @@ Inserta estas etiquetas EXACTAMENTE al final de tu respuesta (sin explicarle al 
     }
 
     if (!disabledModules.includes("habits")) {
-        baseRules += `\n- CREACIÓN DE HÁBITOS (Si el usuario dice "quiero empezar a...", "quiero el hábito de..."):
-  [KODA_ACTION:CREATE_HABIT:Nombre del Hábito|Descripción opcional|daily u otra_frecuencia|hora_tipo_HH:mm:ss]
-  *Nota sobre hábitos: confirma qué hora de recordatorio quiere si no te lo dijo y luego invoca esta acción en el siguiente mensaje. Por defecto asume 20:00:00 si dice "por la noche".*
-- CHECK-IN Y REGISTRO DE HÁBITOS (Si te responden el check-in diario o te dicen "hoy nadé" / "hoy obtuve mi hábito"):
-  [KODA_ACTION:LOG_HABIT:id_del_habito_en_DB|true_o_false|nota_u_observacion_opcional]
-  *Revisa la tabla de [HÁBITOS ACTIVOS] arriba para obtener el ID correcto.*
-- PAUSAR O BORRAR UN HÁBITO:
-  [KODA_ACTION:UPDATE_HABIT_STATUS:id_del_habito_en_DB|paused_o_deleted]`;
+        baseRules += `\n- HÁBITOS: TIENES un módulo activo de hábitos. El sistema gestiona la creación, registro y pausado de hábitos automáticamente. Cuando el usuario mencione hábitos, el sistema inyectará datos bajo [SISTEMA - DATOS DE MÓDULO HABITS]. NUNCA generes tags [KODA_ACTION] para hábitos.`;
     }
 
     if (!disabledModules.includes("weather")) {
@@ -141,11 +134,7 @@ Inserta estas etiquetas EXACTAMENTE al final de tu respuesta (sin explicarle al 
     }
 
     if (!disabledModules.includes("shopping")) {
-        baseRules += `\n- COMPRAS Y SÚPER (SHOPPING): TIENES un módulo activo para gestionar una lista del supermercado o compras. Si el usuario te pide agregar, ver, borrar o tachar cosas del súper, usa las siguientes acciones en tu respuesta EXACTAMENTE así:
-  - PARA AGREGAR: [KODA_ACTION:ADD_SHOPPING_ITEM:item1|item2] (separa los items con barra vertical, ej: leche|huevos 1kg)
-  - PARA VER O LEER LA LISTA: [KODA_ACTION:VIEW_SHOPPING_LIST]
-  - PARA TACHAR/MARCAR COMO COMPRADO: [KODA_ACTION:MARK_SHOPPING_COMPLETED:item1|item2] (separa los items con barra vertical)
-  - PARA VACIAR LA LISTA: [KODA_ACTION:CLEAR_SHOPPING_LIST]`;
+        baseRules += `\n- COMPRAS Y SÚPER (SHOPPING): TIENES un módulo activo para gestionar listas de compras. El sistema gestiona agregar, ver, tachar y vaciar la lista automáticamente. NUNCA generes tags [KODA_ACTION] para compras.`;
     }
 
     if (!disabledModules.includes("gmail")) {
@@ -166,15 +155,14 @@ Inserta estas etiquetas EXACTAMENTE al final de tu respuesta (sin explicarle al 
 
     let familyText = "";
     if (!disabledModules.includes("familia")) {
-        baseRules += `\n- FAMILIA (MI FAMILIA): TIENES un módulo activo para gestionar a la familia del usuario y debes listarlo (con emoji 👨‍👩‍👧‍👦) siempre que te pregunten tus funciones. Si el usuario te menciona algún familiar, inscribe sus datos o sus horarios usando estas acciones EXACTAMENTE así:
-  - PARA REGISTRAR O ACTUALIZAR FAMILIAR: [KODA_ACTION:SAVE_FAMILY_MEMBER:nombre|relacion|cumpleanos|escuela|hora_entrada|hora_salida]
-    (ejemplo: [KODA_ACTION:SAVE_FAMILY_MEMBER:Ana|hija|2015-05-14|Colegio Montessori|07:30|14:00]. Si no tienes todos los datos, pon null, ej: Ana|hija|null|null|null|null)
-  - PARA REGISTRAR UNA ACTIVIDAD: [KODA_ACTION:SAVE_FAMILY_ACTIVITY:nombre_del_familiar|nombre|dias_semana|hora_inicio|hora_fin|lugar]
-    (ejemplo: [KODA_ACTION:SAVE_FAMILY_ACTIVITY:Ana|Clases de ballet|1,3,5|16:00|17:30|Estudio de Danza]. dias_semana es una lista de números donde 0=domingo, 1=lunes, etc.)`;
+        baseRules += `\n- FAMILIA (MI FAMILIA): TIENES un módulo activo para gestionar a la familia del usuario (👨‍👩‍👧‍👦). El sistema gestiona el registro de familiares y actividades automáticamente. NUNCA generes tags [KODA_ACTION] para familia.`;
         if (familyContext) {
             familyText = `[CONTEXTO FAMILIAR HOY]\n${familyContext}\n`;
         }
     }
+
+    baseRules += `\n\n[MÓDULOS AUTOMÁTICOS - NO GENERAR TAGS]
+Para clima, tipo de cambio, hábitos, compras y familia: estos módulos se ejecutan automáticamente por el sistema. Cuando el usuario los solicite, responde brevemente que lo estás consultando. NUNCA generes tags [KODA_ACTION] para estos módulos.`;
 
     return `[IDENTIDAD]
 Eres KODA, un asistente personal con IA. Tu nombre es KODA (siempre en mayúsculas cuando te refieras a ti mismo).

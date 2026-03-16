@@ -245,15 +245,10 @@ async function handleMainFlow(bot, msg, user, options = {}) {
                         console.log('Blocked CREATE_HABIT due to plan restriction');
                     } else {
                         try {
-                            // Check for duplicates before creating
-                            const activeHabits = await db.getActiveHabits(user.id);
-                            const newHabitName = action.payload.name.toLowerCase().trim();
-                            const exists = activeHabits.some(h => h.name.toLowerCase().trim() === newHabitName);
-                            if (exists) {
+                            const result = await db.createHabit(user.id, action.payload.name, action.payload.description, action.payload.frequency, action.payload.reminder_time);
+                            if (result && result.duplicate) {
                                 console.log(`[CREATE_HABIT] Habit "${action.payload.name}" already exists for user ${user.id}. Skipping.`);
-                                strippedText = `Ya tienes un hábito activo llamado "${action.payload.name}". ¡Sigue así!`;
-                            } else {
-                                await db.createHabit(user.id, action.payload.name, action.payload.description, action.payload.frequency, action.payload.reminder_time);
+                                strippedText = `Ya tienes el hábito "${result.existing.name}" activo. ¿Registramos un avance de hoy?`;
                             }
                         } catch (e) {
                             console.error('[CREATE_HABIT] Error creating habit:', e);

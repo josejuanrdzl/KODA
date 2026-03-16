@@ -285,6 +285,19 @@ async function saveMessageAnalysis(user_id, original_message, sender_alias, tone
 }
 
 async function createHabit(user_id, name, description, frequency, reminder_time) {
+  // Anti-duplicate check using case-insensitive match
+  const { data: existing } = await supabase
+    .from('habits')
+    .select('id, name')
+    .eq('user_id', user_id)
+    .ilike('name', name)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (existing) {
+    return { duplicate: true, existing: existing };
+  }
+
   const { data, error } = await supabase
     .from('habits')
     .insert([{ user_id, name, description, frequency, reminder_time }])

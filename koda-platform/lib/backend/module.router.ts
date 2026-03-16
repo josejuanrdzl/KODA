@@ -5,7 +5,7 @@ const { handleMainFlow } = require('./handlers/main');
 
 // Import direct handlers
 import { execute as handleWeather } from '../modules/lifestyle/weather.handler';
-import { getExchangeRates } from './handlers/fx-rates.handler';
+import { execute as handleFxRates } from '../modules/lifestyle/fx-rates.module';
 import { searchSpotify } from './handlers/spotify.handler';
 import { fetchSportsData } from './handlers/sports.handler';
 import { processLunaContext } from './handlers/luna.handler';
@@ -194,6 +194,7 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
 
                 // Handlers interactivos
                 if (slug === 'weather') return { response: (await handleWeather(envelope)).response };
+                if (slug === 'fx-rates') return { response: (await handleFxRates(envelope)).response };
                 if (slug === 'settings') return { response: await handleSettings(bot, mockMsg, session, mockOpts) };
                 if (slug === 'travel') return { response: await handleTravelLocation(mockMsg, session, intent, mockOpts) };
                 if (slug === 'messaging') return { response: await handleDirectMessages(bot, mockMsg, session, mockOpts) };
@@ -207,9 +208,7 @@ export async function routeMessage(bot: any, msg: any, user: any, options: any):
                 // Inyectores de contexto
                 let injectedData = null;
                 try {
-                    if (slug === 'fx-rates') {
-                        injectedData = await getExchangeRates('MXN');
-                    } else if (slug === 'spotify') {
+                    if (slug === 'spotify') {
                         injectedData = await searchSpotify(mockMsg.text);
                     } else if (slug === 'sports') {
                         const match = mockMsg.text.match(/(nfl|nba|mlb|nhl|f1|liga mx|premier league|la liga|champions|europa league|mls)/i);
